@@ -19,7 +19,8 @@
   function tok(){ try{ return localStorage.getItem(K) || ""; }catch(e){ return ""; } }
   function setTok(t){ try{ if (t) localStorage.setItem(K, t); else localStorage.removeItem(K); }catch(e){} }
   function isApi(u){ return typeof u === "string" && u.indexOf("/api/") === 0; }
-  function link(u){ if (!isApi(u)) return u; var t = tok(); return BASE + u + (t ? (u.indexOf("?") < 0 ? "?" : "&") + "_t=" + encodeURIComponent(t) : ""); }
+  /* 열쇠는 # 앞에 붙인다 — PDF 미리보기 주소처럼 끝에 #zoom=… 이 있으면 # 뒤는 서버로 안 가서 "로그인이 필요합니다"가 떴다 (2026-11-06) */
+  function link(u){ if (!isApi(u)) return u; var t = tok(); if (!t) return BASE + u; var i = u.indexOf("#"), p = i < 0 ? u : u.slice(0, i), hs = i < 0 ? "" : u.slice(i); return BASE + p + (p.indexOf("?") < 0 ? "?" : "&") + "_t=" + encodeURIComponent(t) + hs; }
   window.apiLink = link;
   var of = window.fetch.bind(window);
   window.fetch = function(input, init){
@@ -2644,7 +2645,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261105.160501";
+const BUILD = "20261106.154615";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));

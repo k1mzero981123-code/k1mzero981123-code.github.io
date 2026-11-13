@@ -2646,7 +2646,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261109.160501";
+const BUILD = "20261113.140412";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -5438,7 +5438,10 @@ async function ctrmLoad(){
   catch(err){ toast(err.message, true); }
   if (S.page === "ctrm") ctrmRender();
 }
-const ctrmSiteN = (s) => String(s || "").replace(/^\((유통|구매)\)\s*/, "").trim();
+/* 여러 현장을 합친 계약서(현장명 "A 태양광발전소 · B 태양광발전소")는 '태양광발전소' 빼고 개소 수로 묶는다 — "2개소(A, B)" (2026-11-13 사용자). 관리자 먼저 */
+const ctrmGrpOn = () => !!(S.user && S.user.role === "admin");
+const ctrmSiteN = (s) => { const t = String(s || "").replace(/^\((유통|구매)\)\s*/, "").trim(); if (!ctrmGrpOn() || !t.includes(" · ")) return t;
+  const ns = t.split(" · ").map(x => x.replace(/\s*태양광\s*발전소\s*$/, "").trim()).filter(Boolean); return ns.length > 1 ? `${ns.length}개소(${ns.join(", ")})` : t; };
 const ctrmIsSup = (c) => c.kind !== "guar" && c.kind !== "quote";   /* 물품공급계약서만 (연대보증 · 견적서 빼고) */
 /* 품목코드 앞자리 = 1 모듈 · 2 인버터 · 4 모니터링 (2026-10-22 사용자: 10000번대 · 20000번대 · 40000번대). 코드를 아직 못 받았으면 이름으로 짐작 */
 const ctrmCat = (l) => { const c = String(l[5] || "")[0]; if (c === "1") return "mod"; if (c === "2") return "inv"; if (c === "4") return "mon"; if (l[5]) return "etc";
@@ -6009,7 +6012,7 @@ function ctrmPrefill(r){
   const mod = ctrmItems(r.ls, "mod"), inv = ctrmItems(r.ls, "inv"), mon = ctrmItems(r.ls, "mon"), etc = ctrmItems(r.ls, "etc");
   const cats = [mod.length && "모듈", inv.length && "인버터", mon.length && "모니터링"].filter(Boolean);
   return { so: o.no, sos: r.multi ? r.multi.map(x => x.o.no) : [o.no], keys: r.multi ? r.multi.map(x => x.key) : [r.key], site: r.site, cust: o.cust, trCd: o.trCd, date: todayISO(),
-    pj: `${ctrmSiteN(r.site)} 기자재(${cats.join(",") || "모듈"}) 납품의 건`, sup: r.sup,
+    pj: `${ctrmSiteN(r.site)} 기자재(${cats.join(/^\d+개소\(/.test(ctrmSiteN(r.site)) ? ", " : ",") || "모듈"}) 납품의 건`, sup: r.sup,
     advP: last ? last.advP : "", days: last ? last.days : "", from: todayISO(), to: "",
     items: [...mod, ...inv, ...mon], gMod: mod.join(", "), gInv: inv.join(", ") || "없음", gMon: mon.join(", ") || "없음", cap: ctrmCap(r.ls),
     buyer: c && !c.none ? { name: c.name || "", reg: c.reg || "", ceo: c.ceo || "", addr: c.addr || "" } : { name: o.cust, reg: "", ceo: "", addr: "" }, _src: c };

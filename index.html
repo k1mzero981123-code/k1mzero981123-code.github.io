@@ -2646,7 +2646,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261113.140412";
+const BUILD = "20261113.163122";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -5439,7 +5439,7 @@ async function ctrmLoad(){
   if (S.page === "ctrm") ctrmRender();
 }
 /* 여러 현장을 합친 계약서(현장명 "A 태양광발전소 · B 태양광발전소")는 '태양광발전소' 빼고 개소 수로 묶는다 — "2개소(A, B)" (2026-11-13 사용자). 관리자 먼저 */
-const ctrmGrpOn = () => !!(S.user && S.user.role === "admin");
+const ctrmGrpOn = () => true;   /* 2026-11-13 사용자: 팀원들한테도 바로 (예전: 관리자만) */
 const ctrmSiteN = (s) => { const t = String(s || "").replace(/^\((유통|구매)\)\s*/, "").trim(); if (!ctrmGrpOn() || !t.includes(" · ")) return t;
   const ns = t.split(" · ").map(x => x.replace(/\s*태양광\s*발전소\s*$/, "").trim()).filter(Boolean); return ns.length > 1 ? `${ns.length}개소(${ns.join(", ")})` : t; };
 const ctrmIsSup = (c) => c.kind !== "guar" && c.kind !== "quote";   /* 물품공급계약서만 (연대보증 · 견적서 빼고) */

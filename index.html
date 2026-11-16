@@ -130,6 +130,7 @@ select{cursor:pointer}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;line-height:17px;white-space:nowrap}
 .b-good{background:var(--good-soft);color:var(--good)} .b-warn{background:var(--warn-soft);color:var(--warn)}
 .rqWaitB{background:var(--warn-soft);color:var(--warn);font-weight:700;border:1px solid var(--warn);white-space:nowrap}   /* ⏳ 변경대기중 (2026-11-16) */
+.rqWaitBar .rqCxBtn{margin-left:8px;padding:2px 10px;font-size:12px;vertical-align:middle}
 .rqWaitBar{margin:0 0 10px;padding:8px 12px;border-radius:8px;background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn);font-size:13px;font-weight:600;line-height:1.5}
 .b-serious{background:var(--serious-soft);color:var(--serious)} .b-crit{background:var(--high-soft);color:var(--high)}
 .b-blue{background:var(--blue-soft);color:var(--blue)} .b-purple{background:var(--purple-soft);color:var(--purple)}
@@ -2648,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261116.172231";
+const BUILD = "20261116.173050";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -2929,6 +2930,17 @@ const REQ_LOCK_TEAM = true;   /* 2026-11-16 관리자 먼저 → 같은 날 사�
 const reqLockOn = () => !!S.user && (S.user.role === "admin" || REQ_LOCK_TEAM);
 const reqLock = (r) => (!r || !reqLockOn()) ? null : ((S.reqs.locks || []).find(q => q.order_id === r.id) || S.reqs.pending.find(q => q.order_id === r.id) || null);
 const reqLockMsg = (q) => `⏳ 변경대기중 — ${q.by_name || ""} 님이 ${String(q.at || "").slice(0, 16)} 에 보낸 변경 요청이 아직 승인 전입니다. 관리자가 승인·거절한 뒤에 다시 고칠 수 있습니다.`;
+/* 요청 취소 (2026-11-16 사용자: "담당자들이 잘못 요청을 넣는 경우 — 요청취소 다시 할 수 있게") — 보낸 본인이 승인 전 요청을 거둔다. 관리자 먼저 — 팀원 공개는 사용자가 말할 때 true (서버 api/requests.js REQ_CANCEL_TEAM 도) */
+const REQ_CANCEL_TEAM = true;   /* 2026-11-16 사용자 "팀원에게도 켜기" */
+const reqCancelOn = () => !!S.user && S.user.role !== "admin" && REQ_CANCEL_TEAM;   /* 관리자는 요청을 보내지 않음(늘 바로 반영) — 관리자는 [거절]로 닫는다 */
+const reqMine = (r) => (!r || !reqCancelOn()) ? null : (S.reqs.pending.find(q => q.order_id === r.id) || null);
+async function reqCancel(q){
+  if (!q || !(await askConfirm(`<b>${esc(q.site || "")}</b> 변경 요청을 취소할까요?\n취소하면 ⏳ 변경대기중이 풀리고 다시 고칠 수 있습니다.`, { title: "변경 요청 취소", ok: "요청 취소", cancel: "닫기", danger: true }))) return false;
+  try{ await api("POST", "/api/requests", { id: q.id, cancel: true }); }catch(err){ toast(err.message, true); await loadReqs(); return false; }
+  S.reqs.pending = S.reqs.pending.filter(x => x.id !== q.id); S.reqs.locks = (S.reqs.locks || []).filter(x => x.order_id !== q.order_id || S.reqs.pending.some(y => y.order_id === x.order_id));
+  await loadReqs(); renderReqs(); const r = S.rows.find(x => x.id === q.order_id); if (r) refreshRow(r); if (S.page === "logi") renderLogi();
+  toast("변경 요청을 취소했습니다 — 다시 고칠 수 있습니다."); return true;
+}
 async function loadReqs(pre){ try{ const j = pre || await api("GET", "/api/requests"); const lk0 = (S.reqs.locks || []).map(q => q.order_id).join(); S.reqs = { pending: j.pending, done: j.done, locks: j.locks || [] }; renderReqBadge(); if (S.page === "logi" && lk0 !== S.reqs.locks.map(q => q.order_id).join()) renderLogi();   /* 대기 건이 바뀔 때만 다시 그림(30초마다 스크롤이 튀지 않게) */ if (S.page === "my" || S.page === "main") renderReqs(); if (["grid", "pending", "cancel"].includes(S.page)) renderBody(); }catch{} }
 function renderReqBadge(){ const n = S.reqs.pending.length; const b = $("#cReq"); if (b){ b.textContent = n ? num(n) : ""; b.classList.toggle("hidden", !n); } }
 const PERM_L = { post: "게시판", edit: "발주 직접 수정", insp: "사검관리", invoice: "마감관리", recv: "채권관리", cert: "인증서", logi: "물류 2차", stock: "재고관리" };   /* 위 메뉴 순서대로 — 계정 표 머리줄(#acctTable)과 같은 순서여야 한다. insp · stock 은 2026-10-12 추가 */
@@ -2939,12 +2951,13 @@ function renderReqs(){
   const line = (q) => Object.entries(q.patch || {}).filter(([k]) => k !== "owner").map(([k, v]) => `<b>${esc(histL(k))}</b> (${esc((q.before || {})[k] || "빈칸")} → ${esc(v || "빈칸")})`).join("<br>");
   $("#reqN").textContent = num(P.length); $("#reqPanel").classList.toggle("hidden", !P.length && !(admin && D.length));
   $("#reqNMain").textContent = num(P.length); $("#mainReq").classList.toggle("hidden", !(admin && P.length));
-  $("#reqT tbody").innerHTML = $("#reqTMain tbody").innerHTML = P.length ? P.map(q => `<tr data-id="${esc(q.id)}"><td class="mono">${esc(q.at)}</td><td><b>${esc(q.by_name)}</b></td><td><a href="#" class="rq-site" data-oid="${esc(q.order_id)}" style="color:var(--accent);font-weight:600;text-decoration:none">${esc(q.site)}</a></td><td class="l">${line(q)}</td><td style="white-space:nowrap">${admin ? `<button class="btn primary" data-ok style="padding:4px 12px;font-size:12px">승인</button> <button class="ib x" data-no>거절</button>` : '<span class="badge b-warn">승인 대기</span>'}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">${admin ? "대기 중인 변경 요청이 없습니다." : "보낸 변경 요청이 없습니다."}</td></tr>`;
-  $("#reqDoneT tbody").innerHTML = D.length ? D.map(q => `<tr><td class="mono">${esc(q.decided_at || "")}</td><td>${q.status === "approved" ? '<span class="badge b-good">승인</span>' : '<span class="badge b-crit">거절</span>'} <span style="color:var(--ink-3);font-size:11.5px">${esc(q.decided_by || "")}</span></td><td><b>${esc(q.by_name)}</b> <span style="color:var(--ink-3);font-size:11.5px">${esc(q.at)}</span></td><td>${esc(q.site)}</td><td class="l" style="text-align:left">${line(q)}${q.note ? ` <span style="color:var(--ink-3)">— ${esc(q.note)}</span>` : ""}</td></tr>`).join("") : '<tr><td colspan="5" class="empty">처리된 요청이 없습니다.</td></tr>';
+  $("#reqT tbody").innerHTML = $("#reqTMain tbody").innerHTML = P.length ? P.map(q => `<tr data-id="${esc(q.id)}"><td class="mono">${esc(q.at)}</td><td><b>${esc(q.by_name)}</b></td><td><a href="#" class="rq-site" data-oid="${esc(q.order_id)}" style="color:var(--accent);font-weight:600;text-decoration:none">${esc(q.site)}</a></td><td class="l">${line(q)}</td><td style="white-space:nowrap">${admin ? `<button class="btn primary" data-ok style="padding:4px 12px;font-size:12px">승인</button> <button class="ib x" data-no>거절</button>` : '<span class="badge b-warn">승인 대기</span>' + (reqCancelOn() ? ' <button class="ib x" data-cx>요청 취소</button>' : "")}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">${admin ? "대기 중인 변경 요청이 없습니다." : "보낸 변경 요청이 없습니다."}</td></tr>`;
+  $("#reqDoneT tbody").innerHTML = D.length ? D.map(q => `<tr><td class="mono">${esc(q.decided_at || "")}</td><td>${q.status === "approved" ? '<span class="badge b-good">승인</span>' : q.status === "canceled" ? '<span class="badge b-muted">요청 취소</span>' : '<span class="badge b-crit">거절</span>'} <span style="color:var(--ink-3);font-size:11.5px">${esc(q.decided_by || "")}</span></td><td><b>${esc(q.by_name)}</b> <span style="color:var(--ink-3);font-size:11.5px">${esc(q.at)}</span></td><td>${esc(q.site)}</td><td class="l" style="text-align:left">${line(q)}${q.note ? ` <span style="color:var(--ink-3)">— ${esc(q.note)}</span>` : ""}</td></tr>`).join("") : '<tr><td colspan="5" class="empty">처리된 요청이 없습니다.</td></tr>';
 }
 $("#reqMore").addEventListener("click", () => switchPage("my"));
 for (const el of [$("#reqT"), $("#reqTMain")]) el.addEventListener("click", async (e) => {
   const a = e.target.closest("a.rq-site"); if (a){ e.preventDefault(); const r = S.rows.find(x => x.id === a.dataset.oid); if (r) openDrawer(r); return; }
+  const cx = e.target.closest("button[data-cx]"); if (cx){ const q = S.reqs.pending.find(x => x.id === cx.closest("tr").dataset.id); if (q){ cx.disabled = true; if (!(await reqCancel(q))) cx.disabled = false; } return; }
   const b = e.target.closest("button[data-ok], button[data-no]"); if (!b) return; const id = b.closest("tr").dataset.id, approve = "ok" in b.dataset;
   let note = "";
   if (!approve){
@@ -4358,7 +4371,7 @@ async function savePatch(r, patch, extra){   /* extra = 요청에 같이 보낼 
   try{
     const j = await api("PATCH", "/api/orders", { id: r.id, patch, ...(extra || {}) });
     if (j.pending){ undo(); S.reqs.pending.push(j.request); (S.reqs.locks = S.reqs.locks || []).push({ order_id: j.request.order_id, by_name: j.request.by_name, at: j.request.at }); refreshRow(r); renderReqBadge();
-      if (reqLockOn()){ if (S.page === "logi") renderLogi(); if (!$("#confirmHost .modal")){ askConfirm(`<b>${esc(r.site)}</b> 변경 요청을 보냈습니다.\n관리자가 승인하기 전까지 이 건은 <b>⏳ 변경대기중</b>으로 잠깁니다.`, { title: "변경 요청 접수", ok: "확인" }); const no = $("#confirmHost [data-no]"); if (no) no.remove(); } }   /* 토스트는 티가 안 나서 계속 다시 보냈음 → 팝업 */
+      if (reqLockOn()){ if (S.page === "logi") renderLogi(); if (!$("#confirmHost .modal")){ askConfirm(`<b>${esc(r.site)}</b> 변경 요청을 보냈습니다.\n관리자가 승인하기 전까지 이 건은 <b>⏳ 변경대기중</b>으로 잠깁니다.${reqCancelOn() ? "\n잘못 보냈으면 수정 창 위 [요청 취소]로 거둘 수 있습니다." : ""}`, { title: "변경 요청 접수", ok: "확인" }); const no = $("#confirmHost [data-no]"); if (no) no.remove(); } }   /* 토스트는 티가 안 나서 계속 다시 보냈음 → 팝업 */
       else toast("변경 요청을 보냈습니다. 관리자가 승인하면 반영됩니다.");
       return "pending"; }
     if (j.same){ delete r._saving; refreshRow(r); return true; }
@@ -6547,6 +6560,8 @@ function quickModal(r, isNew){
   if (!isNew && reqLock(r)){
     const lq = reqLock(r), bar = document.createElement("div"); bar.className = "rqWaitBar"; bar.textContent = reqLockMsg(lq);
     const hd = $(".qkh", box); if (hd) hd.after(bar); else box.prepend(bar);
+    { const mq = reqMine(r); if (mq){ const cb = document.createElement("button"); cb.type = "button"; cb.className = "btn quiet rqCxBtn"; cb.textContent = "요청 취소"; cb.title = "잘못 보낸 요청이면 거둡니다 — 취소하면 다시 고칠 수 있습니다";
+      cb.onclick = async () => { cb.disabled = true; if (await reqCancel(mq)){ const fresh = S.rows.find(x => x.id === r.id); if (fresh) openDrawer(fresh); } else cb.disabled = false; }; bar.append(" ", cb); } }
     if (S.user.role !== "admin"){
       const ub = $("#qUnlock", box); if (ub) ub.remove();
       if (!can("edit")){ for (const el of $$("[data-k]", box)) if (el.type !== "hidden"){ el.disabled = true; el.classList.add("locked"); } const ok = $("#mOk", box); if (ok) ok.classList.add("hidden"); }   /* 직접 수정 권한이 없으면 무엇을 고쳐도 변경 요청이라 전부 잠금 */
@@ -6581,8 +6596,8 @@ function quickModal(r, isNew){
       const reqs = [...S.reqs.pending, ...S.reqs.done].filter(q => q.order_id === r.id);
       const reqItems = (q) => Object.entries(q.patch || {}).filter(([k]) => k !== "owner").map(([k, v]) => ({ f: histL(k), from: (q.before || {})[k] || "", to: v || "" }));
       const rows = [
-        ...reqs.map(q => ({ at: q.status === "pending" ? q.at : (q.decided_at || q.at), who: q.by_name, tag: q.status === "pending" ? '<span class="badge b-warn">승인 대기</span>' : q.status === "approved" ? `<span class="badge b-good">승인</span> <small style="color:var(--ink-3)">${esc(q.decided_by || "")}</small>` : `<span class="badge b-crit">거절</span> <small style="color:var(--ink-3)">${esc(q.decided_by || "")}</small>`, items: reqItems(q), extra: (q.note ? `<span style="color:var(--ink-3)">사유 — ${esc(q.note)}</span>` : "")
-          + (q.status === "pending" && S.user.role === "admin" ? `<div class="rqAct"><button type="button" class="btn primary" data-rok="${esc(q.id)}">승인해서 반영</button><button type="button" class="btn quiet" data-rno="${esc(q.id)}">거절</button></div>` : ""), key: q.status === "pending" ? "9" : "1" })).filter(x => x.key === "9" || !j.list.some(h => h.at === x.at)),
+        ...reqs.map(q => ({ at: q.status === "pending" ? q.at : (q.decided_at || q.at), who: q.by_name, tag: q.status === "pending" ? '<span class="badge b-warn">승인 대기</span>' : q.status === "approved" ? `<span class="badge b-good">승인</span> <small style="color:var(--ink-3)">${esc(q.decided_by || "")}</small>` : q.status === "canceled" ? '<span class="badge b-muted">요청 취소</span>' : `<span class="badge b-crit">거절</span> <small style="color:var(--ink-3)">${esc(q.decided_by || "")}</small>`, items: reqItems(q), extra: (q.note ? `<span style="color:var(--ink-3)">사유 — ${esc(q.note)}</span>` : "")
+          + (q.status === "pending" && S.user.role === "admin" ? `<div class="rqAct"><button type="button" class="btn primary" data-rok="${esc(q.id)}">승인해서 반영</button><button type="button" class="btn quiet" data-rno="${esc(q.id)}">거절</button></div>` : q.status === "pending" && reqCancelOn() ? `<div class="rqAct"><button type="button" class="btn quiet" data-rcx="${esc(q.id)}">요청 취소</button></div>` : ""), key: q.status === "pending" ? "9" : "1" })).filter(x => x.key === "9" || !j.list.some(h => h.at === x.at)),
         ...j.list.filter(h => h.action !== "create").map(h => ({ at: h.at, who: h.by_name, tag: h.action === "delete" ? '<span class="badge b-crit">삭제</span>' : '<span class="badge b-muted">수정</span>', items: histItems(h), key: "5" })),
       ];
       /* 납기 변경 칸(처음 · n차)에 값은 있는데 이력엔 없는 것 — 이관 전에 바뀐 것이라 언제·누가는 모른다 */
@@ -6597,6 +6612,7 @@ function quickModal(r, isNew){
         el.innerHTML = rows.length ? `<table class="list qkhT"><colgroup><col style="width:128px"><col style="width:64px"><col style="width:70px"><col style="width:110px"><col><col></colgroup><thead><tr><th>수정일자</th><th>담당자</th><th>구분</th><th>항목</th><th>이전 내용</th><th>변경 내용</th></tr></thead><tbody>${rows.map(tr).join("")}</tbody></table>` : '<div class="empty">아직 저장·수정 이력이 없습니다</div>'; }
       const hist = $("#qkHist", box);
       if (hist) hist.addEventListener("click", async (e) => {
+        const cx = e.target.closest("[data-rcx]"); if (cx){ const q = S.reqs.pending.find(x => x.id === cx.dataset.rcx); if (q && (await reqCancel(q))){ const fresh = S.rows.find(x => x.id === r.id); if (fresh) openDrawer(fresh); } return; }
         const b = e.target.closest("[data-rok],[data-rno]"); if (!b) return;
         const id = b.dataset.rok || b.dataset.rno, approve = !!b.dataset.rok;
         let note = "";

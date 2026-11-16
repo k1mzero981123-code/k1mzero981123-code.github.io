@@ -2648,7 +2648,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261116.171940";
+const BUILD = "20261116.172231";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -2925,7 +2925,7 @@ function afterSave(){ clearTimeout(afterSave._t); afterSave._t = setTimeout(() =
 /* ───────────────────────── 변경 요청 (팀원 → 관리자 승인) ───────────────────────── */
 /* 변경대기중 (2026-11-16 사용자: "한번 접수 넣으면 변경대기중으로 계속 변경 못하게 — 티가 안 나니까 계속 접수넣어") — 승인 대기 요청이 있는 건은
    현장명 옆 '⏳ 변경대기중' · 수정 창 위 안내 · 물류현황 [납기변경] 막기, 서버(api/orders.js)도 새 요청을 거절. 관리자 먼저 — 팀원 공개는 사용자가 말할 때 true (서버 REQ_LOCK_TEAM 도) */
-const REQ_LOCK_TEAM = false;
+const REQ_LOCK_TEAM = true;   /* 2026-11-16 관리자 먼저 → 같은 날 사용자 "팀원에게도 켜기" */
 const reqLockOn = () => !!S.user && (S.user.role === "admin" || REQ_LOCK_TEAM);
 const reqLock = (r) => (!r || !reqLockOn()) ? null : ((S.reqs.locks || []).find(q => q.order_id === r.id) || S.reqs.pending.find(q => q.order_id === r.id) || null);
 const reqLockMsg = (q) => `⏳ 변경대기중 — ${q.by_name || ""} 님이 ${String(q.at || "").slice(0, 16)} 에 보낸 변경 요청이 아직 승인 전입니다. 관리자가 승인·거절한 뒤에 다시 고칠 수 있습니다.`;

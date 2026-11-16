@@ -2649,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261116.173050";
+const BUILD = "20261116.173222";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -6610,7 +6610,7 @@ function quickModal(r, isNew){
           return its.map((it, i) => `<tr class="${i ? "" : "g1"}">${i ? "" : head}<td class="fld">${esc(it.f)}</td><td>${cell(it.from)}</td><td class="to">${cell(it.to)}</td></tr>`).join("") + (x.extra ? `<tr><td colspan="3">${x.extra}</td></tr>` : ""); };
         { const hn = $("#qkHistN", box); if (hn) hn.innerHTML = `${rows.length}${rows.some(x => x.key === "9") ? ' <span class="badge b-warn">승인 대기</span>' : ""}`; if (S.user.role === "admin" && rows.some(x => x.key === "9") && !$("#qkSubHost .modal")) qkLinkPop("hist", r, box); }   /* 승인 대기가 있으면 저절로 엶 */
         el.innerHTML = rows.length ? `<table class="list qkhT"><colgroup><col style="width:128px"><col style="width:64px"><col style="width:70px"><col style="width:110px"><col><col></colgroup><thead><tr><th>수정일자</th><th>담당자</th><th>구분</th><th>항목</th><th>이전 내용</th><th>변경 내용</th></tr></thead><tbody>${rows.map(tr).join("")}</tbody></table>` : '<div class="empty">아직 저장·수정 이력이 없습니다</div>'; }
-      const hist = $("#qkHist", box);
+      const hist = el;   /* 이력 표 자체에 붙인다 — 승인 대기면 작은 창으로 먼저 옮겨져 box 안에서 못 찾아 [승인]·[거절]이 먹지 않던 문제 (2026-11-16) */
       if (hist) hist.addEventListener("click", async (e) => {
         const cx = e.target.closest("[data-rcx]"); if (cx){ const q = S.reqs.pending.find(x => x.id === cx.dataset.rcx); if (q && (await reqCancel(q))){ const fresh = S.rows.find(x => x.id === r.id); if (fresh) openDrawer(fresh); } return; }
         const b = e.target.closest("[data-rok],[data-rno]"); if (!b) return;

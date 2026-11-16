@@ -129,6 +129,8 @@ select{cursor:pointer}
 .ib.plus{font-size:14px;line-height:1;padding:1px 7px}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;line-height:17px;white-space:nowrap}
 .b-good{background:var(--good-soft);color:var(--good)} .b-warn{background:var(--warn-soft);color:var(--warn)}
+.rqWaitB{background:var(--warn-soft);color:var(--warn);font-weight:700;border:1px solid var(--warn);white-space:nowrap}   /* ⏳ 변경대기중 (2026-11-16) */
+.rqWaitBar{margin:0 0 10px;padding:8px 12px;border-radius:8px;background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn);font-size:13px;font-weight:600;line-height:1.5}
 .b-serious{background:var(--serious-soft);color:var(--serious)} .b-crit{background:var(--high-soft);color:var(--high)}
 .b-blue{background:var(--blue-soft);color:var(--blue)} .b-purple{background:var(--purple-soft);color:var(--purple)}
 .b-muted{background:var(--line-2);color:var(--ink-3)}
@@ -2646,7 +2648,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261113.163122";
+const BUILD = "20261116.171940";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -2921,7 +2923,13 @@ function renderAll(){
 function afterSave(){ clearTimeout(afterSave._t); afterSave._t = setTimeout(() => { if (S.page === "cert") renderCert(); if (S.page === "due") renderDue(); if (S.page === "pending") renderPending(); if (S.page === "cancel") renderCancel(); buildLists(); renderTiles(); renderCal(); renderSched(); renderLogi(); renderRecent(); renderScope(); renderMy(); }, 50); }   /* 화면 먼저 그리고 나머지는 뒤에서. 표는 refreshRow 로 그 줄만 바뀜 */
 
 /* ───────────────────────── 변경 요청 (팀원 → 관리자 승인) ───────────────────────── */
-async function loadReqs(pre){ try{ const j = pre || await api("GET", "/api/requests"); S.reqs = { pending: j.pending, done: j.done }; renderReqBadge(); if (S.page === "my" || S.page === "main") renderReqs(); if (["grid", "pending", "cancel"].includes(S.page)) renderBody(); }catch{} }
+/* 변경대기중 (2026-11-16 사용자: "한번 접수 넣으면 변경대기중으로 계속 변경 못하게 — 티가 안 나니까 계속 접수넣어") — 승인 대기 요청이 있는 건은
+   현장명 옆 '⏳ 변경대기중' · 수정 창 위 안내 · 물류현황 [납기변경] 막기, 서버(api/orders.js)도 새 요청을 거절. 관리자 먼저 — 팀원 공개는 사용자가 말할 때 true (서버 REQ_LOCK_TEAM 도) */
+const REQ_LOCK_TEAM = false;
+const reqLockOn = () => !!S.user && (S.user.role === "admin" || REQ_LOCK_TEAM);
+const reqLock = (r) => (!r || !reqLockOn()) ? null : ((S.reqs.locks || []).find(q => q.order_id === r.id) || S.reqs.pending.find(q => q.order_id === r.id) || null);
+const reqLockMsg = (q) => `⏳ 변경대기중 — ${q.by_name || ""} 님이 ${String(q.at || "").slice(0, 16)} 에 보낸 변경 요청이 아직 승인 전입니다. 관리자가 승인·거절한 뒤에 다시 고칠 수 있습니다.`;
+async function loadReqs(pre){ try{ const j = pre || await api("GET", "/api/requests"); const lk0 = (S.reqs.locks || []).map(q => q.order_id).join(); S.reqs = { pending: j.pending, done: j.done, locks: j.locks || [] }; renderReqBadge(); if (S.page === "logi" && lk0 !== S.reqs.locks.map(q => q.order_id).join()) renderLogi();   /* 대기 건이 바뀔 때만 다시 그림(30초마다 스크롤이 튀지 않게) */ if (S.page === "my" || S.page === "main") renderReqs(); if (["grid", "pending", "cancel"].includes(S.page)) renderBody(); }catch{} }
 function renderReqBadge(){ const n = S.reqs.pending.length; const b = $("#cReq"); if (b){ b.textContent = n ? num(n) : ""; b.classList.toggle("hidden", !n); } }
 const PERM_L = { post: "게시판", edit: "발주 직접 수정", insp: "사검관리", invoice: "마감관리", recv: "채권관리", cert: "인증서", logi: "물류 2차", stock: "재고관리" };   /* 위 메뉴 순서대로 — 계정 표 머리줄(#acctTable)과 같은 순서여야 한다. insp · stock 은 2026-10-12 추가 */
 const PERM_KEYS = Object.keys(PERM_L);
@@ -3382,7 +3390,7 @@ function renderLogi(){
   const full = (rows, done, solo) => { rows = pick(rows); const NC = (done ? 12 : 11) - (S.user && S.user.role === "admin" ? 4 : 0);   /* 관리자는 품목~수량 4칸이 숨어 있어 묶음 줄도 그만큼 줄인다 — 안 줄이면 고정 폭 표가 어긋남 (2026-10-29) */ if (!rows.length) return `<tr><td colspan="${NC}" class="empty">해당 건이 없습니다.</td></tr>`;
     let h = ""; for (const g of FROM_ORDER){ const gr = rows.filter(r => shipFrom(r) === g); if (!gr.length) continue;
       if (!solo) h += `<tr class="g"><td colspan="${NC}">${g === "기타" ? "그 외 구매처" : esc(g)}<span class="n">${gr.length}건 · ${esc([...new Set(gr.map(r => r.vendor).filter(Boolean))].slice(0, 4).join(", "))}</span></td></tr>`;
-      h += gr.map(r => `<tr class="r" data-id="${r.id}"><td>${ddHtml(r)}</td><td class="tn" style="font-weight:600">${esc(r.dlvFinal || "")}</td><td class="cl">${clientTxt(r)}</td><td class="site">${esc(r.site)}</td>${spec3(r)}<td>${esc(r.qty || "")}</td>${done ? `<td>${ownerTxt(logiWho(r))}</td><td><div class="lrc"><span class="bd"><span class="ldt" title="접수한 일자${r.logiAt ? " " + esc(r.logiAt) : ""}">${esc(String(logiWhen(r) || "").slice(0, 10) || "-")}</span>${r.logiChg ? '<span class="badge b-warn" title="납품일이 바뀌었습니다 — 요청서를 다시 보내세요">재발송</span>' : ""}</span></div></td>` : `<td>${ownerSel(r)}</td><td>${stSel(r, "dispatch")}</td>`}<td>${done ? `<span class="lact">${r.logiImg ? `<button type="button" data-lv="${r.id}" title="저장된 요청서 보기">요청서</button>` : r.logiForm ? `<button type="button" data-lf="${r.id}" title="요청서 양식 열기">요청서</button>` : ""}${logiPast(r) ? `<span class="lLock" title="납품일(${esc(r.dlvFinal)})이 지나 납기를 바꿀 수 없습니다">🔒 납기</span>` : `<button type="button" data-dc="${r.id}" title="납품일을 바꾸고 요청서를 다시 보냅니다 — 발주리스트·변경내역에도 남습니다">납기변경</button>`}</span>` : `<button type="button" class="lbtn ok" data-lf="${r.id}" title="물류사에 보낼 요청서를 쓰고 접수 처리">접수</button>`}</td>${done ? `<td>${logiPast(r) && r.delivered === "완료" ? `<span class="badge b-good" title="납품일(${esc(r.dlvFinal)})이 지나 바꿀 수 없습니다">🔒 완료</span>` : stSel(r, "delivered")}</td>` : ""}</tr>`).join(""); }
+      h += gr.map(r => `<tr class="r" data-id="${r.id}"><td>${ddHtml(r)}</td><td class="tn" style="font-weight:600">${esc(r.dlvFinal || "")}</td><td class="cl">${clientTxt(r)}</td><td class="site">${esc(r.site)}${reqLock(r) ? ` <span class="badge rqWaitB" title="${esc(reqLockMsg(reqLock(r)))}">⏳ 변경대기중</span>` : ""}</td>${spec3(r)}<td>${esc(r.qty || "")}</td>${done ? `<td>${ownerTxt(logiWho(r))}</td><td><div class="lrc"><span class="bd"><span class="ldt" title="접수한 일자${r.logiAt ? " " + esc(r.logiAt) : ""}">${esc(String(logiWhen(r) || "").slice(0, 10) || "-")}</span>${r.logiChg ? '<span class="badge b-warn" title="납품일이 바뀌었습니다 — 요청서를 다시 보내세요">재발송</span>' : ""}</span></div></td>` : `<td>${ownerSel(r)}</td><td>${stSel(r, "dispatch")}</td>`}<td>${done ? `<span class="lact">${r.logiImg ? `<button type="button" data-lv="${r.id}" title="저장된 요청서 보기">요청서</button>` : r.logiForm ? `<button type="button" data-lf="${r.id}" title="요청서 양식 열기">요청서</button>` : ""}${reqLock(r) && S.user.role !== "admin" ? `<span class="lLock" style="color:var(--warn)" title="${esc(reqLockMsg(reqLock(r)))}">⏳ 변경대기중</span>` : logiPast(r) ? `<span class="lLock" title="납품일(${esc(r.dlvFinal)})이 지나 납기를 바꿀 수 없습니다">🔒 납기</span>` : `<button type="button" data-dc="${r.id}" title="납품일을 바꾸고 요청서를 다시 보냅니다 — 발주리스트·변경내역에도 남습니다">납기변경</button>`}</span>` : `<button type="button" class="lbtn ok" data-lf="${r.id}" title="물류사에 보낼 요청서를 쓰고 접수 처리">접수</button>`}</td>${done ? `<td>${logiPast(r) && r.delivered === "완료" ? `<span class="badge b-good" title="납품일(${esc(r.dlvFinal)})이 지나 바꿀 수 없습니다">🔒 완료</span>` : stSel(r, "delivered")}</td>` : ""}</tr>`).join(""); }
     return h; };
   $("#v-logi").classList.toggle("lgAdm", !!S.user && S.user.role === "admin");   /* 관리자 계정은 품목 · 제조사 · 용량 · 수량 칸을 안 보이게 (2026-10-28 사용자) — 팀원 화면은 그대로 */
   const hist = logiRows("hist");   /* 물류현황 페이지 진행완료 = 납품 끝난 건까지 (메인 미니 목록은 그대로 진행 중만) */
@@ -3476,8 +3484,8 @@ function askDlvChange(r){
     <div class="err" id="mErr"></div><div class="row"><span class="sp"></span><button class="btn quiet" data-x>닫기</button><button class="btn primary" id="mOk">납품일 변경</button></div>`,
     async () => { const d = normDate($("#dcDate").value); if (!isDate(d)) throw new Error("날짜를 알아볼 수 없습니다 — 0918 · 9/18 · 2026-09-18 처럼 쳐 주세요."); if (d === r.dlvFinal) throw new Error("지금 납품일과 같습니다.");
       const targets = [r, ...($("#dcAll") && $("#dcAll").checked ? same : [])];
-      for (const x of targets){ const p = derived(x, { dlvFinal: d }); if (x.logi2 === "접수완료") p.logiChg = "1"; await savePatch(x, p); }
-      renderLogi();
+      let pend = 0; for (const x of targets){ const p = derived(x, { dlvFinal: d }); if (x.logi2 === "접수완료") p.logiChg = "1"; if ((await savePatch(x, p)) === "pending") pend++; }
+      renderLogi(); if (pend && reqLockOn()) return;   /* 변경 요청으로 갔으면 아직 안 바뀐 것 — 요청서 다시 보내기는 묻지 않는다 (2026-11-16) */
       const go = await askConfirm(`납품일을 <b>${esc(d)}</b>(으)로 바꿨습니다${targets.length > 1 ? ` — ${targets.length}건` : ""}.\n새 날짜로 요청서를 다시 작성해 보낼까요?`, { title: "요청서 다시 보내기", ok: "요청서 열기", cancel: "나중에" });
       if (go) logiForm(r); });
 }
@@ -4203,7 +4211,9 @@ function cellHtml(r, c){
   if (c.k === "_days"){ const d = daysOf(r); if (d === null) return `<td class="c"></td>`; return `<td class="c tn"><span class="dlv ${d <= 10 ? "late" : ""}" title="${d < 0 ? "납기 " + (-d) + "일 지남" : d + "일 남음"}">${d}</span></td>`; }
   if (c.k === "_dlvN"){ const n = dlvCount(r); return `<td class="c" data-k="_dlvN" title="${esc(DLV_KEYS.filter(k => r[k]).map(k => DLV_LABEL[k] + " " + r[k]).join(" → "))}">${n ? `<span class="dn2">${n}회</span>` : ""}</td>`; }
   if (c.k === "owner") return `<td class="c" data-k="owner" title="처음 작성한 사람 — 자동 기록">${ownerTxt(v)}</td>`;
-  if (c.k === "site"){ const pend = S.reqs.pending.filter(q => q.order_id === r.id).length; return `<td class="ed site" data-k="site">${esc(v)}${pend ? ` <span class="badge b-warn" title="변경 요청 ${pend}건 대기 중">요청 ${pend}</span>` : ""}</td>`; }
+  if (c.k === "site"){ const pend = S.reqs.pending.filter(q => q.order_id === r.id).length, lq = reqLock(r);
+    if (lq) return `<td class="ed site" data-k="site">${esc(v)} <span class="badge rqWaitB" title="${esc(reqLockMsg(lq))}">⏳ 변경대기중${pend > 1 ? " " + pend : ""}</span></td>`;
+    return `<td class="ed site" data-k="site">${esc(v)}${pend ? ` <span class="badge b-warn" title="변경 요청 ${pend}건 대기 중">요청 ${pend}</span>` : ""}</td>`; }
   if (c.k === "_mod") return `<td class="mod" data-k="_mod" title="${esc(r._by && r._by !== "엑셀 이관" ? r._by + " · " + (r._at || "") : (r._at || ""))}">${esc((r._at || "").slice(0, 16))}</td>`;
   let inner = esc(v), cls = c.c || "";
   if (c.t === "date") inner = `<span title="${esc(v)}">${esc(fmtD(v))}</span>`;
@@ -4244,6 +4254,7 @@ function startEdit(td, r, quiet){
   if (S.editing) commitEdit();
   const say = (m) => { if (!quiet) toast(m); };
   const c = BYK[td.dataset.k]; if (!c || c.t === "calc") return; if (c.k === "logi2"){ say("물류현황 2차는 물류현황 화면에서 물류담당자가 표기합니다 — 여기엔 자동으로 반영됩니다."); return; }
+  if (S.user.role !== "admin" && !can("edit") && reqLock(r) && !["shipDate", "salesInv", "purchInv", "cert", "certSt"].includes(c.k)){ if (!quiet || c.k === "delivered") toast(reqLockMsg(reqLock(r)), true); return; }   /* ⏳ 변경대기중 — 또 요청이 되는 칸은 막는다 (2026-11-16) */
   if (c.k === "delivered"){ if (quiet && !td.classList.contains("cur")) return;
     if (S.page === "inv"){ toast("마감관리에서는 납품여부를 바꿀 수 없습니다 — 발주현황에서 바꿔 주세요."); return; }
     if (r._saving || (r._dlvAt && Date.now() - r._dlvAt < 1200)) return; r._dlvAt = Date.now();
@@ -4346,7 +4357,10 @@ async function savePatch(r, patch, extra){   /* extra = 요청에 같이 보낼 
   const undo = () => { Object.keys(r).forEach(k => { if (!(k in before)) delete r[k]; }); Object.assign(r, before); delete r._saving; refreshRow(r); };
   try{
     const j = await api("PATCH", "/api/orders", { id: r.id, patch, ...(extra || {}) });
-    if (j.pending){ undo(); S.reqs.pending.push(j.request); refreshRow(r); renderReqBadge(); toast("변경 요청을 보냈습니다. 관리자가 승인하면 반영됩니다."); return "pending"; }
+    if (j.pending){ undo(); S.reqs.pending.push(j.request); (S.reqs.locks = S.reqs.locks || []).push({ order_id: j.request.order_id, by_name: j.request.by_name, at: j.request.at }); refreshRow(r); renderReqBadge();
+      if (reqLockOn()){ if (S.page === "logi") renderLogi(); if (!$("#confirmHost .modal")){ askConfirm(`<b>${esc(r.site)}</b> 변경 요청을 보냈습니다.\n관리자가 승인하기 전까지 이 건은 <b>⏳ 변경대기중</b>으로 잠깁니다.`, { title: "변경 요청 접수", ok: "확인" }); const no = $("#confirmHost [data-no]"); if (no) no.remove(); } }   /* 토스트는 티가 안 나서 계속 다시 보냈음 → 팝업 */
+      else toast("변경 요청을 보냈습니다. 관리자가 승인하면 반영됩니다.");
+      return "pending"; }
     if (j.same){ delete r._saving; refreshRow(r); return true; }
     Object.keys(r).forEach(k => { if (!(k in j.row) && k !== "id" && k !== "ord") delete r[k]; }); Object.assign(r, j.row); S.version = j.version;
     refreshRow(r); afterSave(); toast("저장했습니다.");
@@ -6528,6 +6542,15 @@ function quickModal(r, isNew){
       lockables.forEach(el => { el.disabled = false; el.classList.remove("locked"); }); btn.remove(); ok.classList.remove("hidden");
       ok.textContent = admin ? "저장 (완료 건 수정)" : "변경 요청 보내기"; ok.classList.add("warn"); S.unlockedDone = true;
       toast(admin ? "잠금을 풀었습니다. 저장할 때 다시 한 번 확인합니다." : "잠긴 칸을 풀었습니다. 고친 내용은 변경 요청으로 보내지고 관리자가 승인하면 반영됩니다."); };
+  }
+  /* ⏳ 변경대기중 (2026-11-16 사용자) — 승인 대기 요청이 있으면 창 위에 안내. 팀원은 새 요청이 될 칸을 잠근다(관리자는 안내만 — 아래 수정 이력에서 승인·거절) */
+  if (!isNew && reqLock(r)){
+    const lq = reqLock(r), bar = document.createElement("div"); bar.className = "rqWaitBar"; bar.textContent = reqLockMsg(lq);
+    const hd = $(".qkh", box); if (hd) hd.after(bar); else box.prepend(bar);
+    if (S.user.role !== "admin"){
+      const ub = $("#qUnlock", box); if (ub) ub.remove();
+      if (!can("edit")){ for (const el of $$("[data-k]", box)) if (el.type !== "hidden"){ el.disabled = true; el.classList.add("locked"); } const ok = $("#mOk", box); if (ok) ok.classList.add("hidden"); }   /* 직접 수정 권한이 없으면 무엇을 고쳐도 변경 요청이라 전부 잠금 */
+    }
   }
   /* 같이 등록한 건 번호 — 수정 창에서도 눌러 오간다 (등록·수정 창 공통) */
   { const sibs = $("#qkSibs", box);

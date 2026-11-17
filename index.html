@@ -2649,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261116.173222";
+const BUILD = "20261117.135439";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -5471,8 +5471,11 @@ const ctrmSiteN = (s) => { const t = String(s || "").replace(/^\((유통|구매)
   const ns = t.split(" · ").map(x => x.replace(/\s*태양광\s*발전소\s*$/, "").trim()).filter(Boolean); return ns.length > 1 ? `${ns.length}개소(${ns.join(", ")})` : t; };
 const ctrmIsSup = (c) => c.kind !== "guar" && c.kind !== "quote";   /* 물품공급계약서만 (연대보증 · 견적서 빼고) */
 /* 품목코드 앞자리 = 1 모듈 · 2 인버터 · 4 모니터링 (2026-10-22 사용자: 10000번대 · 20000번대 · 40000번대). 코드를 아직 못 받았으면 이름으로 짐작 */
-const ctrmCat = (l) => { const c = String(l[5] || "")[0]; if (c === "1") return "mod"; if (c === "2") return "inv"; if (c === "4") return "mon"; if (l[5]) return "etc";
-  return /인버터|SUN2000|HPC-|SG\d|GW\d+K|PVI|모니터링/i.test(l[0]) ? (/모니터링/.test(l[0]) ? "mon" : "inv") : "mod"; };
+/* 2026-11-17: 주문 품목코드가 아직 안 왔으면 품목등록 목록(CTRM.items)에서 같은 품명의 코드를 찾아 씀 — Q.VOLT 인버터가 모듈 칸에 들어간 일(SO2611000991) */
+const ctrmCodeOf = (l) => { if (l[5]) return String(l[5]); const nm = String(l[0] || "").replace(/^\[단종\]\s*/, "").replace(/\s+/g, "").toLowerCase(); if (!nm) return "";
+  const hit = (CTRM.items || []).find(it => String(it[2] || "").replace(/^\[단종\]\s*/, "").replace(/\s+/g, "").toLowerCase() === nm); return hit ? String(hit[0] || "") : ""; };
+const ctrmCat = (l) => { const code = ctrmCodeOf(l), c = code[0]; if (c === "1") return "mod"; if (c === "2") return "inv"; if (c === "4") return "mon"; if (code) return "etc";
+  return /인버터|SUN2000|HPC-|SG\d|GW\d+K|PVI|Q\.?VOLT|STD\d|DSP-|SN\d+PT|모니터링/i.test(l[0]) ? (/모니터링/.test(l[0]) ? "mon" : "inv") : "mod"; };
 /* 줄 = [품명, 수량, 금액(VAT포함), 현장, 순번, 품목코드, 공급가, 품번] — 주문 하나를 현장마다 한 줄로 */
 CTRM.qf = { from: "", to: "", cust: "", site: "", st: "", q: "" };
 const ctrmQHas = () => Object.values(CTRM.qf).some(Boolean);

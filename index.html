@@ -1352,7 +1352,7 @@ table.chkT td.empty{color:var(--ink-4);padding:18px}
 .chkOffB{opacity:.4;pointer-events:none;filter:grayscale(1)}
 .chkErp{display:flex;gap:6px;flex-wrap:wrap}
 .chkEsR{display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;margin-bottom:4px;background:var(--panel)}.chkEsR.esY{background:var(--good-soft,#eaf6ee)}.chkEsR.esN{background:var(--band,#f4f4f4)}.chkEsR.esN .chkEsL{color:var(--ink-4);text-decoration:line-through}
-.chkEsL{width:96px;flex:none;font-size:12px;font-weight:700;color:var(--ink-2)}.chkEsR+.chkErpL{margin:-2px 0 6px 12px}#chkM .chkEsNo.on{background:var(--ink-4);border-color:var(--ink-4);color:#fff}#chkM .chkEsNo.on .chkVb{background:transparent;border-color:#fff;color:#fff}
+.chkEsAt{margin-left:auto;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}.chkEsL{width:96px;flex:none;font-size:12px;font-weight:700;color:var(--ink-2)}.chkEsR+.chkErpL{margin:-2px 0 6px 12px}#chkM .chkEsNo.on{background:var(--ink-4);border-color:var(--ink-4);color:#fff}#chkM .chkEsNo.on .chkVb{background:transparent;border-color:#fff;color:#fff}
 #chkPeopleB{display:flex;flex-direction:column}
 .chkPp{border-top:1px solid var(--line-2);padding:6px 12px 8px}
 .chkPp:first-child{border-top:0}
@@ -2649,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261117.152927";
+const BUILD = "20261117.161508";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -8704,6 +8704,11 @@ async function chkResync(id){ try{ const l = (await api("GET", "/api/checks")).l
 const chkIsBusy = () => [...(S.chkBusy || new Map()).values()].some(n => n > 0);
 /* 발주등록 2. 전산등록 세부 6줄 (2026-11-04 사용자: "각각 별도로, 등록하지 않아도 되는 건 진행안함") — 관리자 화면 먼저, 팀원은 예전 아마란스 · 업무자료 */
 const CHK_ERP_SUB = [["erpOrd", "주문등록"], ["erpPo", "발주등록"], ["erpEtc", "전산(타사)"], ["erpPrt", "인쇄"], ["erpWm", "업무자료"], ["erpExp", "지출결의서"]];
+/* 전산등록 세부 줄 오른쪽 = 완료 · 진행안함을 누른 일시 (2026-11-17 사용자: "처리 기록 말고 그 줄 오른쪽에 클릭한 일시를 그대로 — 직관적으로", 관리자 계정에만)
+   서버가 남기는 it.vAt[칸] 을 먼저, 없으면(예전 건) 처리 기록의 마지막 '칸 변경' 줄 */
+const chkEsAtOn = () => S.user && S.user.role === "admin";
+const chkEsAt = (it, key) => { if (!chkEsAtOn()) return null; const a = (it.vAt || {})[key]; if (a && a.at) return a;
+  const l = (it.log || []).slice().reverse().find(x => x.t === key + " 변경"); return l ? { at: l.at, by: l.by } : null; };
 const chkErpNew = () => true;   /* 전산등록 세부 6줄 — 2026-11-04 관리자 먼저 → 같은 날 팀원 공개(사용자) */
 async function chkVal(it, key, value){
   try{ await chkSave(it.id, { act: "val", id: it.id, key, value }); return chkLocal(it.id) || it; }
@@ -8780,7 +8785,7 @@ function chkPaint0(){
       if (k === "erp"){ const tg = (key, l) => `<button type="button" class="chkPmB${v[key] === "Y" ? " on" : ""}" data-csend="${key}"><span class="chkVb">${v[key] === "Y" ? "✓" : ""}</span>${l}</button>`;
         const rows = chkLinkRows(it), nw = chkErpNew();
         /* 세부 6줄 (2026-11-04 사용자, 관리자 먼저): 줄마다 [완료] [진행안함] — 같은 단추를 다시 누르면 풀림. 업무자료 줄 바로 밑에 발주현황 연결 */
-        const sub = (key, l) => { const s = v[key] || ""; return `<div class="chkEsR${s === "Y" ? " esY" : s === "N" ? " esN" : ""}"><span class="chkEsL">${l}</span><button type="button" class="chkPmB${s === "Y" ? " on" : ""}" data-cerp="${key}" data-cerpv="Y"><span class="chkVb">${s === "Y" ? "✓" : ""}</span>완료</button><button type="button" class="chkPmB chkEsNo${s === "N" ? " on" : ""}" data-cerp="${key}" data-cerpv="N"><span class="chkVb">${s === "N" ? "—" : ""}</span>진행안함</button></div>`; };
+        const sub = (key, l) => { const s = v[key] || "", w = s ? chkEsAt(it, key) : null; return `<div class="chkEsR${s === "Y" ? " esY" : s === "N" ? " esN" : ""}"><span class="chkEsL">${l}</span><button type="button" class="chkPmB${s === "Y" ? " on" : ""}" data-cerp="${key}" data-cerpv="Y"><span class="chkVb">${s === "Y" ? "✓" : ""}</span>완료</button><button type="button" class="chkPmB chkEsNo${s === "N" ? " on" : ""}" data-cerp="${key}" data-cerpv="N"><span class="chkVb">${s === "N" ? "—" : ""}</span>진행안함</button>${w ? `<span class="chkEsAt" title="${esc(w.by || "")} ${esc(w.at)}">${esc(String(w.at).slice(5, 16))}</span>` : ""}</div>`; };
         const wmOld = (x) => nw ? CHK_ERP_SUB.map(([key, l]) => sub(key, l) + (key === "erpWm" ? x : "")).join("") + (v.erpAmr === "Y" ? `<div class="chkE" style="margin-top:4px">예전 체크: 아마란스 ✓</div>` : "") : `<div class="chkErp">${tg("erpAmr", "아마란스")}${tg("erpWm", "업무자료")}</div>` + x;
         return wmOld(v.erpWm === "Y" ? `<div class="chkErpL">${it.link
               ? `<div class="chkLk">🔗 발주현황 ${chkOrdSites(it).length}개 현장 · ${it.link.ids.length}건${chkOrdSites(it).map(x => `<span class="chkSiteTag">${esc(x)}</span>`).join("")}<button type="button" class="ib" data-cpick>${S.chkPicking ? "고르기 닫기" : "＋ 현장 더 고르기"}</button></div>`

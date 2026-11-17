@@ -2649,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261117.141123";
+const BUILD = "20261117.141725";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -6134,12 +6134,13 @@ function ctrmForm(it){
     const nb = $("#ctNo"); if (nb && isNew) nb.textContent = `제${ctrmNextNo(/^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : todayISO())} 호`; };
   box.addEventListener("input", (e) => { e.target.classList.remove("bad"); $("#mErr").textContent = ""; calc(); });
   /* 2026-11-17 사용자: 품목 칸(모듈 · 인버터 · 모니터링)을 고치면 ① '없음' 뒤에 이어 쓴 것은 '없음' 을 뗌 ② 프로젝트명 끝 '기자재(…) 납품의 건' 의 괄호를 칸에 값 있는 품목대로 */
-  box.addEventListener("input", (e) => { const g = e.target.dataset && e.target.dataset.c; if (!/^g(Mod|Inv|Mon)$/.test(g || "")) return;
-    const el = e.target, t = el.value; if (/없음/.test(t) && t.replace(/없음/g, "").trim()){ el.value = t.replace(/\s*없음\s*/g, " ").replace(/^[\s,+·]+/, "").trimStart(); }
-    const has = (k) => { const s = ($(`[data-c="${k}"]`, box) || {}).value || ""; return !!s.trim() && s.trim() !== "없음"; };
+  const pjSync = () => { const has = (k) => { const s = ($(`[data-c="${k}"]`, box) || {}).value || ""; return !!s.trim() && s.trim() !== "없음"; };
     const cats = [has("gMod") && "모듈", has("gInv") && "인버터", has("gMon") && "모니터링"].filter(Boolean); if (!cats.length) return;
     const pj = $('[data-c="pj"]', box), m = pj && /^(.*기자재\()([^)]*)(\)\s*납품의\s*건\s*)$/.exec(pj.value); if (!m) return;
-    const sep = /,\s/.test(m[2]) || /^\d+개소\(/.test(m[1]) ? ", " : ",", nv = m[1] + cats.join(sep) + m[3]; if (nv !== pj.value) pj.value = nv; });
+    const sep = /,\s/.test(m[2]) || /^\d+개소\(/.test(m[1]) ? ", " : ",", nv = m[1] + cats.join(sep) + m[3]; if (nv !== pj.value){ pj.value = nv; box.closest(".box").dataset.dirty = "1"; } };
+  box.addEventListener("input", (e) => { const g = e.target.dataset && e.target.dataset.c;
+    if (/^g(Mod|Inv|Mon)$/.test(g || "")){ const el = e.target, t = el.value; if (/없음/.test(t) && t.replace(/없음/g, "").trim()) el.value = t.replace(/\s*없음\s*/g, " ").replace(/^[\s,+·]+/, "").trimStart(); }
+    if (g !== "pj") pjSync(); });
   box.addEventListener("click", (e) => { const m = e.target.closest("[data-paym]"), q = e.target.closest("[data-dq]"); if (!m && !q) return;
     if (m){ const ai = $("[data-c=advP]", box), di = $("[data-c=days]", box), wasFull = ai.value.trim() === "100";
       if (m.dataset.paym === "none") ai.value = "0";
@@ -6176,6 +6177,7 @@ function ctrmForm(it){
   $("#ctOrd").onclick = () => ctrmOrdPick(it, () => { box.closest(".box").dataset.dirty = "1"; ordPaint(); });
   /* 자동 임시저장(이 PC) — 열쇠는 주문번호|현장(임시저장 번호가 생겨도 같은 열쇠), 발주현황 연동 고른 것도 같이 */
   fdAttach(box, "supply:" + (!isNew && it.id ? it.id : kk.join(",")), { reopen: () => ctrmForm(it), extra: { get: () => ({ ords: it.ords || [] }), set: (x) => { if (Array.isArray(x.ords)) it.ords = x.ords; } } });
+  pjSync();   /* 창을 열 때(임시저장 불러온 뒤)도 프로젝트명 괄호를 품목 칸대로 (2026-11-17 사용자: "다시 해봤는데 수정이 안돼") */
   ordPaint();
   calc();
 }

@@ -2649,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261117.141725";
+const BUILD = "20261117.150510";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -6125,10 +6125,10 @@ function ctrmForm(it){
     /* 지급 방식 — 선금 0% = 선금 없이 납품 후 100% (2026-10-28 사용자). 고른 방식 · 일수 단추에 불 */
     /* 선금 100% = 납품 전 100% 지급(2026-10-30 사용자) — 잔금 없음, 일수 0 으로 잠금 */
     const none = x.advP !== "" && p === 0, full = x.advP !== "" && p === 100, mode = x.advP === "" ? "" : none ? "none" : full ? "full" : "adv", ai = $("[data-c=advP]", box), di = $("[data-c=days]", box);
-    ai.readOnly = none || full; ai.classList.toggle("ro", none || full); di.readOnly = full; di.classList.toggle("ro", full);
+    ai.readOnly = none || full; ai.classList.toggle("ro", none || full); di.readOnly = false; di.classList.remove("ro");   /* 납품 전 100% 도 일수 칸을 고칠 수 있게 — 특약사항 '납품일로부터 (N)일 이내', 기본 5 (2026-11-17 사용자) */
     $$("[data-paym]", box).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.paym === mode)));
     $$("[data-dq]", box).forEach(b => { b.style.display = full ? "none" : ""; b.setAttribute("aria-pressed", String(String(x.days) === b.dataset.dq)); });
-    $("#ctDaysL").textContent = none ? "대금 지급" : full ? "잔금 없음" : "잔금 지급";
+    $("#ctDaysL").textContent = none ? "대금 지급" : full ? "선금 지급" : "잔금 지급";
     $("#ctCalc").innerHTML = sup ? `<div class="ctrmST">금액 안내</div><div><span>공급가액</span><b>${num(sup)}</b></div><div><span>부가세</span><b>${num(vat)}</b></div><div class="t"><span>총액</span><b>${num(tot)}원</b></div><div class="k">${ctrmKor(tot)}원</div>` : "";
     $("#ctPay").innerHTML = sup ? `<div><span>선금</span><b>${num(adv)}원</b></div><div><span>잔금</span><b>${num(tot - adv)}원</b></div>${x.from && x.to ? `<div><span>계약기간</span><b>${esc(x.from)} ~ ${esc(x.to)}</b></div>` : ""}` : "";
     const nb = $("#ctNo"); if (nb && isNew) nb.textContent = `제${ctrmNextNo(/^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : todayISO())} 호`; };
@@ -6144,9 +6144,9 @@ function ctrmForm(it){
   box.addEventListener("click", (e) => { const m = e.target.closest("[data-paym]"), q = e.target.closest("[data-dq]"); if (!m && !q) return;
     if (m){ const ai = $("[data-c=advP]", box), di = $("[data-c=days]", box), wasFull = ai.value.trim() === "100";
       if (m.dataset.paym === "none") ai.value = "0";
-      else if (m.dataset.paym === "full"){ ai.value = "100"; di.value = "0"; di.classList.remove("bad"); }
+      else if (m.dataset.paym === "full"){ ai.value = "100"; di.value = "5"; di.classList.remove("bad"); }
       else { if (ai.value.trim() === "0" || wasFull) ai.value = ""; ai.readOnly = false; ai.focus(); }
-      if (m.dataset.paym !== "full" && wasFull && di.value.trim() === "0"){ di.value = ""; di.readOnly = false; }
+      if (m.dataset.paym !== "full" && wasFull && /^(0|5)$/.test(di.value.trim())){ di.value = ""; di.readOnly = false; }
       ai.classList.remove("bad"); }
     if (q){ const di = $("[data-c=days]", box); di.value = q.dataset.dq; di.classList.remove("bad"); }
     $("#mErr").textContent = ""; calc(); });
@@ -6177,6 +6177,7 @@ function ctrmForm(it){
   $("#ctOrd").onclick = () => ctrmOrdPick(it, () => { box.closest(".box").dataset.dirty = "1"; ordPaint(); });
   /* 자동 임시저장(이 PC) — 열쇠는 주문번호|현장(임시저장 번호가 생겨도 같은 열쇠), 발주현황 연동 고른 것도 같이 */
   fdAttach(box, "supply:" + (!isNew && it.id ? it.id : kk.join(",")), { reopen: () => ctrmForm(it), extra: { get: () => ({ ords: it.ords || [] }), set: (x) => { if (Array.isArray(x.ords)) it.ords = x.ords; } } });
+  { const ai = $("[data-c=advP]", box), di = $("[data-c=days]", box); if (ai && di && ai.value.trim() === "100" && /^0?$/.test(di.value.trim())) di.value = "5"; }   /* 예전 납품 전 100%(일수 0) → 5 */
   pjSync();   /* 창을 열 때(임시저장 불러온 뒤)도 프로젝트명 괄호를 품목 칸대로 (2026-11-17 사용자: "다시 해봤는데 수정이 안돼") */
   ordPaint();
   calc();

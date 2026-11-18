@@ -2649,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261117.161508";
+const BUILD = "20261118.113007";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -6920,9 +6920,12 @@ $("#dueCopy").addEventListener("click", async () => { const rows = dueRows(); if
   const C = DUE_COLS(); const tsv = [C.map(c => c[1]).join("\t"), ...rows.map(r => C.map(c => dueCell(r, c[0]).replace(/[\t\n]/g, " ")).join("\t"))].join("\n");
   try{ await navigator.clipboard.writeText(tsv); toast(`${rows.length}건을 복사했습니다 — 엑셀에 붙여 넣으세요.`); }
   catch{ const ta = document.createElement("textarea"); ta.value = tsv; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); toast(`${rows.length}건을 복사했습니다.`); } });
+const DUE_IMG_SLIM_TEAM = true;   /* 2026-11-18 사용자 "모두에게" — 팀원 이미지 복사에서도 물류현황 · 담당 뺌 */
 async function dueImage(){
   const rows = dueRows(); if (!rows.length) throw new Error("그림으로 만들 건이 없습니다.");
-  const C = DUE_COLS(), byV = S.due.by === "vendor", byP = S.due.by === "pj";
+  /* 2026-11-18 사용자: 이미지 복사에서는 물류현황 · 담당 칸 빼기 (표 · 엑셀 · 복사는 그대로) — 관리자 먼저, 팀원 공개는 DUE_IMG_SLIM_TEAM */
+  const slim = S.user.role === "admin" || DUE_IMG_SLIM_TEAM;
+  const C = DUE_COLS().filter(c => !slim || (c[0] !== "_disp" && c[0] !== "owner")), byV = S.due.by === "vendor", byP = S.due.by === "pj";
   const W = { vendor: 150, pj: 56, client: 150, site: 200, item: 76, maker: 90, capacity: 64, grade: 56, qty: 64, orderDate: 96, sched: 60, dlvFinal: 96, _days: 64, _disp: 118, owner: 80 };
   const RH = 30, HH = 32, PAD = 18, TITLE = 44, FOOT = 26, SC = 2;
   const widths = C.map(c => W[c[0]] || 90), tw = widths.reduce((a, b) => a + b, 0);

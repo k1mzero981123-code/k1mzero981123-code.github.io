@@ -2649,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261118.113007";
+const BUILD = "20261118.115221";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -5469,7 +5469,7 @@ async function ctrmLoad(){
 const ctrmGrpOn = () => true;   /* 2026-11-13 사용자: 팀원들한테도 바로 (예전: 관리자만) */
 const ctrmSiteN = (s) => { const t = String(s || "").replace(/^\((유통|구매)\)\s*/, "").trim(); if (!ctrmGrpOn() || !t.includes(" · ")) return t;
   const ns = t.split(" · ").map(x => x.replace(/\s*태양광\s*발전소\s*$/, "").trim()).filter(Boolean); return ns.length > 1 ? `${ns.length}개소(${ns.join(", ")})` : t; };
-const ctrmIsSup = (c) => c.kind !== "guar" && c.kind !== "quote";   /* 물품공급계약서만 (연대보증 · 견적서 빼고) */
+const ctrmIsSup = (c) => c.kind !== "guar" && c.kind !== "quote" && c.kind !== "stmt";   /* 물품공급계약서만 (연대보증 · 견적서 · 거래명세서 빼고 — 2026-11-18 거래명세서가 작성완료에 '제호'로 섞여 뜨던 것) */
 /* 품목코드 앞자리 = 1 모듈 · 2 인버터 · 4 모니터링 (2026-10-22 사용자: 10000번대 · 20000번대 · 40000번대). 코드를 아직 못 받았으면 이름으로 짐작 */
 /* 2026-11-17: 주문 품목코드가 아직 안 왔으면 품목등록 목록(CTRM.items)에서 같은 품명의 코드를 찾아 씀 — Q.VOLT 인버터가 모듈 칸에 들어간 일(SO2611000991) */
 const ctrmCodeOf = (l) => { if (l[5]) return String(l[5]); const nm = String(l[0] || "").replace(/^\[단종\]\s*/, "").replace(/\s+/g, "").toLowerCase(); if (!nm) return "";
@@ -5740,15 +5740,15 @@ function fdAttach(box, k, opt = {}){
 }
 const ctrmQNew = () => ({ kind: "quote", date: todayISO(), cust: "", trCd: "", rcv: "", pay: "", dlvDt: "", dlvPl: "", pj: "", rows: [], notes: [CTRM_QNOTE0] });
 function ctrmQuoteForm(it){
-  const v = (k) => esc(it[k] == null ? "" : it[k]), isS = it.kind === "stmt", NN = isS ? 4 : 8, N0 = isS ? CTRM_SNOTE0 : CTRM_QNOTE0, NM = isS ? "거래명세서" : "견적서";
+  const v = (k) => esc(it[k] == null ? "" : it[k]), isS = it.kind === "stmt", grow = !isS || ctrmStmtMultiOn(), refs = isS && (it.refs || []).length > 1 ? it.refs : null, NN = isS ? 4 : 8, N0 = isS ? CTRM_SNOTE0 : CTRM_QNOTE0, NM = isS ? "거래명세서" : "견적서";
   /* 견적서 품목은 5줄 넘게(2026-11-03 사용자: "5개 밖에 못 쳐서 엔터치면 밑에 계속") — 마지막 줄 비고에서 Enter 면 줄이 늘어난다(최대 CTRM_QMAX). 거래명세서는 양식 5줄 */
   const used = (r) => r && (r.name || r.spec || (r.qty !== "" && r.qty != null) || (r.price !== "" && r.price != null));
-  const nRow = isS ? 5 : Math.min(CTRM_QMAX, Math.max(5, (it.rows || []).reduce((m, r, i) => used(r) ? i + 1 : m, 0)));
+  const nRow = !grow ? 5 : Math.min(CTRM_QMAX, Math.max(5, (it.rows || []).reduce((m, r, i) => used(r) ? i + 1 : m, 0)));
   const rows = Array.from({ length: nRow }, (_, i) => (it.rows || [])[i] || { cd: "", name: "", spec: "", qty: "", price: "", note: "" });
   const notes = Array.from({ length: NN }, (_, i) => (it.notes || [])[i] || "");
   const dateIn = (k, ph) => `<span class="ctrmD"><input data-c="${k}" value="${v(k)}" placeholder="${ph}"><button type="button" class="ib" data-cal="${k}">📅</button></span>`;
   modal(`<div class="ctrmF ctrmW ctrmQF2" data-guard data-enterflow>
-    <div class="ctrmWh"><h2>${NM} ${it.id ? "수정" : "작성"}</h2><span class="ctrmHd">${isS ? `${/^SO/.test(it.ref || "") ? "주문번호" : "출고번호"} <b class="mono">${esc(it.ref || "")}</b>${/^SO/.test(it.ref || "") ? " <span class=\"ctrmBadge pre\">미출고</span>" : ""} · 아마란스 거래명세서 내역 — 샘플 양식 그대로 PDF` : "샘플 견적서 양식 그대로 PDF 로 나옵니다"}</span></div>
+    <div class="ctrmWh"><h2>${NM} ${it.id ? "수정" : "작성"}</h2><span class="ctrmHd">${isS ? `${/^SO/.test(it.ref || "") ? "주문번호" : "출고번호"} <b class="mono">${esc(refs ? refs.join(", ") : it.ref || "")}</b>${refs ? ` <span class="ctrmBadge">${refs.length}건 합침</span>` : ""}${/^SO/.test(it.ref || "") ? " <span class=\"ctrmBadge pre\">미출고</span>" : ""} · 아마란스 거래명세서 내역 — 샘플 양식 그대로 PDF` : "샘플 견적서 양식 그대로 PDF 로 나옵니다"}</span></div>
     <div class="ctrmWg ctrmWgQ">
       <section class="ctrmC key"><div class="ctrmST">${isS ? "거래명세서 정보" : "견적 정보"}</div>
         <div class="ctrmV">
@@ -5767,7 +5767,7 @@ function ctrmQuoteForm(it){
         <div class="ctrmQTW"><table class="ctrmQT"><colgroup><col style="width:30px"><col><col style="width:96px"><col style="width:44px"><col style="width:76px"><col style="width:104px"><col style="width:112px"><col style="width:96px"></colgroup>
           <thead><tr><th>No.</th><th>${isS ? "납품 모델명" : "품목"}</th><th>규격</th><th>단위</th><th>수량</th><th>단가</th><th>금액</th><th>비고</th></tr></thead>
           <tbody>${rows.map(ctrmQRowHtml).join("")}</tbody></table></div>
-        ${isS ? "" : `<div style="margin-top:6px"><button type="button" class="btn quiet" id="ctQAdd">＋ 품목 줄 추가</button></div>`}
+        ${!grow ? "" : `<div style="margin-top:6px"><button type="button" class="btn quiet" id="ctQAdd">＋ 품목 줄 추가</button></div>`}
         <div class="ctrmAmt ctrmQSum" id="ctQSum"></div>
       </section>
       <section class="ctrmC"><div class="ctrmST">세부사항 <span class="m">한 줄에 하나씩</span></div>
@@ -5805,7 +5805,7 @@ function ctrmQuoteForm(it){
         /* 견적서: 마지막 품목 줄 단가 · 비고에서 Enter + 그 줄에 쓴 게 있으면 아래에 새 줄 (2026-11-03 사용자) */
         const tr = t.closest("tr[data-qr]"), all = $$("tr[data-qr]", box);
         /* 2026-11-03 사용자 "엔터치니까 안 되는데" — 단가에서 Enter 쳐도(단가를 쓴 뒤) 새 줄. 비고는 눌러서 쓰거나 비고에서 Enter */
-        if (!isS && tr && (t.dataset.r === "note" ? $$("input", tr).some(x => x.value.trim()) : t.dataset.r === "price" && t.value.trim()) && tr === all[all.length - 1]){
+        if (grow && tr && (t.dataset.r === "note" ? $$("input", tr).some(x => x.value.trim()) : t.dataset.r === "price" && t.value.trim()) && tr === all[all.length - 1]){
           if (all.length >= CTRM_QMAX){ toast(`품목은 ${CTRM_QMAX}줄까지 쓸 수 있어요 (PDF 한 장)`, true); }
           else { tr.insertAdjacentHTML("afterend", ctrmQRowHtml({}, all.length)); const nt = tr.nextElementSibling, ni = $("[data-r=name]", nt); nt.scrollIntoView({ block: "nearest" }); ni.focus(); return; } }
         const n = L2[(i2 < 0 ? i : i2) + 1]; if (n){ n.focus(); if (n.select) n.select(); } else $("#mOk").focus(); };
@@ -5841,12 +5841,12 @@ function ctrmQuoteForm(it){
   $("[data-c=cust]", box).dataset.tr = it.trCd || "";
   $("#ctPrev").onclick = () => ctrmPdfPost(ctrmQuoteRead(it));
   /* [＋ 품목 줄 추가] — Enter(맨 아래 줄 단가 · 비고) 말고도 눌러서 줄을 늘린다 (2026-11-03 사용자 "엔터 쳐도 추가 안 된다") */
-  const addRow = () => { const all = $$("tr[data-qr]", box); if (isS || all.length >= CTRM_QMAX) return false; all[all.length - 1].insertAdjacentHTML("afterend", ctrmQRowHtml({}, all.length)); return true; };
+  const addRow = () => { const all = $$("tr[data-qr]", box); if (!grow || all.length >= CTRM_QMAX) return false; all[all.length - 1].insertAdjacentHTML("afterend", ctrmQRowHtml({}, all.length)); return true; };
   if ($("#ctQAdd")) $("#ctQAdd").onclick = () => {
     if (!addRow()){ toast(`품목은 ${CTRM_QMAX}줄까지 쓸 수 있어요 (PDF 한 장)`, true); return; }
     const nt = $$("tr[data-qr]", box).pop(); nt.scrollIntoView({ block: "nearest" }); $("[data-r=name]", nt).focus(); };
   /* 자동 임시저장 — 새 견적서는 'quote:new', 고치는 건 그 번호, 거래명세서는 출고번호 */
-  fdAttach(box, isS ? "stmt:" + (it.id || it.ref || "new") : "quote:" + (it.id || "new"), { addRow, reopen: () => ctrmQuoteForm(it) });
+  fdAttach(box, isS ? "stmt:" + (it.id || (refs ? refs.join("+") : it.ref) || "new") : "quote:" + (it.id || "new"), { addRow, reopen: () => ctrmQuoteForm(it) });
   termPaint(); calc();
 }
 const CTRM_QMAX = 15;   /* 견적서 품목 최대 줄 — 서버 _quote.js QMAX 와 같게 (PDF 한 장에 들어가는 만큼) */
@@ -5859,7 +5859,7 @@ function ctrmQuoteRead(it){
   const box = $("#modalHost .ctrmF"), g = (k) => $(`[data-c=${k}]`, box).value.trim();
   const rows = $$("tr[data-qr]", box).map(tr => ({ cd: tr.dataset.cd || "", name: $("[data-r=name]", tr).value.trim(), spec: ctrmQUnit(tr.dataset.cd, $("[data-r=spec]", tr).value), qty: ctrmQNum($("[data-r=qty]", tr).value), price: ctrmQNum($("[data-r=price]", tr).value), note: $("[data-r=note]", tr).value.trim() }));
   const isS = it.kind === "stmt", gv = (k) => { const el = $(`[data-c=${k}]`, box); return el ? el.value.trim() : ""; };
-  return { kind: isS ? "stmt" : "quote", ...(isS ? { ref: it.ref, valid: gv("valid") } : {}), id: it.id || "", date: normDate(g("date")), cust: g("cust"), trCd: $("[data-c=cust]", box).dataset.tr || "", rcv: g("rcv"), pay: g("pay"), dlvDt: normDate(g("dlvDt")), dlvPl: g("dlvPl"), pj: g("pj").replace(/\s*\n\s*/g, " "),
+  return { kind: isS ? "stmt" : "quote", ...(isS ? { ref: it.ref, ...(it.refs && it.refs.length > 1 ? { refs: it.refs } : {}), valid: gv("valid") } : {}), id: it.id || "", date: normDate(g("date")), cust: g("cust"), trCd: $("[data-c=cust]", box).dataset.tr || "", rcv: g("rcv"), pay: g("pay"), dlvDt: normDate(g("dlvDt")), dlvPl: g("dlvPl"), pj: g("pj").replace(/\s*\n\s*/g, " "),
     rows, notes: $$("[data-n]", box).map((i, k) => k === 0 ? (isS ? CTRM_SNOTE0 : CTRM_QNOTE0) : i.value.trim()) };   /* 첫 줄은 고정 문구 (2026-10-27 사용자) */
 }
 /* 찾기 목록 — 칸 아래에 뜨는 작은 목록(업체 · 품목). 위아래 화살표 · Enter 로 고르기, 바깥 누르면 닫힘 */
@@ -5898,10 +5898,23 @@ function ctrmStmtSpec(cd, nm){
   return "";
 }
 const ctrmStmtPrefill = (d) => ({ kind: "stmt", ref: d.no, date: todayISO(), cust: d.cust, trCd: d.trCd, rcv: "-", pay: ctrmTermTxt(d.cust) || "", dlvDt: d.pre ? d.due : d.dt, dlvPl: d.pre ? "미출고" : "납품완료", valid: d.pre ? "미출고" : "납품완료", pj: d.pre && d.allSites ? d.allSites.split(" · ").map(ctrmStmtPj).join(" · ") : ctrmStmtPj(d.bigo),
-  rows: d.lines.slice(0, 5).map(l => ({ cd: l[1], name: l[3] || l[2], spec: ctrmStmtSpec(l[1], l[2]), qty: l[4], price: l[5], note: "" })), notes: [CTRM_SNOTE0] });
+  rows: d.lines.slice(0, ctrmStmtMultiOn() ? CTRM_QMAX : 5).map(l => ({ cd: l[1], name: l[3] || l[2], spec: ctrmStmtSpec(l[1], l[2]), qty: l[4], price: l[5], note: "" })), notes: [CTRM_SNOTE0] });
+/* 거래명세서 합쳐 쓰기(2026-11-18 사용자) — 관리자 먼저. 팀원 공개는 사용자에게 물은 뒤 () => true */
+const ctrmStmtMultiOn = () => true;   /* 2026-11-18 사용자 "모두에게" */
+const ctrmSSels = () => (CTRM.sSels || []).filter(no => (CTRM.sRows || []).some(d => d.no === no));
+const ctrmStmtHas = (c, no) => c.ref === no || (c.refs || []).includes(no);   /* 합쳐 쓴 거래명세서는 refs 에 출고 · 주문번호 모두 */
+/* 여러 건 → 한 장: 품목 줄을 고른 차례대로 이어 붙임(최대 CTRM_QMAX), 납품일정 = 가장 늦은 출고일(미출고는 가장 늦은 납기), 프로젝트명은 겹치지 않게 ' · ' 로 */
+function ctrmStmtPrefillN(ds){
+  const one = ds.map(ctrmStmtPrefill), x = { ...one[0] }, dts = ds.map(d => d.pre ? d.due : d.dt).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s || "")).sort();
+  x.refs = ds.map(d => d.no); x.ref = ds[0].no;
+  x.dlvDt = dts.length ? dts[dts.length - 1] : x.dlvDt;
+  x.pj = [...new Set(one.flatMap(o => String(o.pj || "").split(" · ")).map(s => s.trim()).filter(Boolean))].join(" · ");
+  x.rows = ds.flatMap(d => d.lines.map(l => ({ cd: l[1], name: l[3] || l[2], spec: ctrmStmtSpec(l[1], l[2]), qty: l[4], price: l[5], note: "" }))).slice(0, CTRM_QMAX);
+  return x;
+}
 const ctrmStmtSum = (d) => d.lines.reduce((t, l) => t + (Number(l[6]) || 0), 0);
 const CTRM_SC = [["dt", "출고일자", 86, d => d.dt], ["no", "출고번호", 108, d => d.no], ["cust", "고객", 0, d => d.cust, "l"], ["pj", "납품 프로젝트명", 0, d => ctrmStmtPj(d.bigo), "l"],
-  ["sup", "공급가", 104, d => num(ctrmStmtSum(d)), "r"], ["st", "거래명세서", 80, d => (d.pre ? d.pre + " · " : "") + (CTRM.list.some(c => c.kind === "stmt" && c.ref === d.no) ? "작성" : "미작성")]];
+  ["sup", "공급가", 104, d => num(ctrmStmtSum(d)), "r"], ["st", "거래명세서", 80, d => (d.pre ? d.pre + " · " : "") + (CTRM.list.some(c => c.kind === "stmt" && ctrmStmtHas(c, d.no)) ? "작성" : "미작성")]];
 const CTRM_SD = [["date", "작성일자", 86, c => c.date], ["ref", "출고번호", 108, c => c.ref || ""], ["cust", "고객", 0, c => c.cust, "l"], ["pj", "납품 프로젝트명", 0, c => c.pj || "", "l"],
   ["tot", "합계(VAT 포함)", 110, c => num(c.tot || 0), "r"]];
 /* ── 거래명세서 — 출고 전(주문번호) 발급 (2026-11-09 사용자: "주문번호 기준으로 거래명세서 먼저 발급해달라고 하는 경우 — 납품 전에 …
@@ -5944,25 +5957,25 @@ CTRM.f.sord = {}; CTRM.f.sdone = {};
 function ctrmStmtRender(){
   $("#ctrmClr").classList.toggle("hidden", !Object.keys(CTRM.f.sord).length); $("#ctrmClr2").classList.toggle("hidden", !Object.keys(CTRM.f.sdone).length);
   if (!CTRM.loaded){ $("#ctrmOrd").innerHTML = '<div class="ctrmEmpty">불러오는 중…</div>'; return; }
-  const done = (d) => CTRM.list.some(c => c.kind === "stmt" && c.ref === d.no);
+  const done = (d) => CTRM.list.some(c => c.kind === "stmt" && ctrmStmtHas(c, d.no));
   const preOn = ctrmPreOn(), pres = preOn ? ctrmPreRows() : [];
   CTRM_SC[0][1] = preOn ? "일자" : "출고일자"; CTRM_SC[1][1] = preOn ? "출고·주문번호" : "출고번호"; CTRM_SD[1][1] = preOn ? "출고·주문번호" : "출고번호"; CTRM_SC[5][2] = preOn ? 132 : 80;
   CTRM.sRows = (CTRM.stmts || []).concat(pres);
   CTRM.sAll = CTRM.sRows.filter(d => ctrmQOk(d.dt, d.cust, ctrmStmtPj(d.bigo), [d.no, d.cust, d.bigo, ...d.lines.flatMap(l => [l[1], l[2], l[3]])].join(" "), done(d)));
   const rows = CTRM.sAll.filter(d => ctrmPass("sord", CTRM_SC, d)).sort((a, b) => String(b.dt).localeCompare(String(a.dt)) || String(b.no).localeCompare(String(a.no)));
-  if (CTRM.sSel && !rows.some(d => d.no === CTRM.sSel)) CTRM.sSel = null;
-  $("#ctrmNew").disabled = !CTRM.sSel; $("#ctrmOrdN").textContent = rows.length + "건";
-  $("#ctrmOrd").innerHTML = `<table class="ctrmT">${ctrmHead("sord", CTRM_SC)}<tbody>${rows.map(d => { const n = CTRM.list.filter(c => c.kind === "stmt" && c.ref === d.no).length;
-      const so = d.pre ? [] : [...new Set((CTRM.shipSo && CTRM.shipSo.get(d.no)) || [])].filter(s => CTRM.list.some(c => c.kind === "stmt" && c.ref === s));
-      return `<tr data-sno="${esc(d.no)}" class="${d.no === CTRM.sSel ? "on" : ""}${d.pre ? " pre" : ""}" title="${esc((d.pre ? `${d.pre} 주문 — 납기 ${d.due || "-"}\n${d.title || ""}\n` : "") + d.lines.map(l => `${l[3] || l[2]} × ${num(l[4])}`).join("\n"))}">
+  CTRM.sSels = (CTRM.sSels || (CTRM.sSel ? [CTRM.sSel] : [])).filter(no => rows.some(d => d.no === no)); CTRM.sSel = CTRM.sSels[0] || null;
+  $("#ctrmNew").disabled = !CTRM.sSel; $("#ctrmNew").textContent = CTRM.sSels.length > 1 ? `작성 (${CTRM.sSels.length}건 합쳐서)` : "작성"; $("#ctrmOrdN").textContent = rows.length + "건";
+  $("#ctrmOrd").innerHTML = `<table class="ctrmT">${ctrmHead("sord", CTRM_SC)}<tbody>${rows.map(d => { const n = CTRM.list.filter(c => c.kind === "stmt" && ctrmStmtHas(c, d.no)).length;
+      const so = d.pre ? [] : [...new Set((CTRM.shipSo && CTRM.shipSo.get(d.no)) || [])].filter(s => CTRM.list.some(c => c.kind === "stmt" && ctrmStmtHas(c, s)));
+      return `<tr data-sno="${esc(d.no)}" class="${CTRM.sSels.includes(d.no) ? "on" : ""}${d.pre ? " pre" : ""}" title="${esc((d.pre ? `${d.pre} 주문 — 납기 ${d.due || "-"}\n${d.title || ""}\n` : "") + d.lines.map(l => `${l[3] || l[2]} × ${num(l[4])}`).join("\n"))}">
       <td>${esc(d.dt)}</td><td class="mono">${esc(d.no)}</td><td class="l" title="${esc(d.cust)}">${esc(d.cust)}</td><td class="l" title="${esc(d.allSites || d.bigo)}">${esc(ctrmStmtPj(d.bigo))}</td>
       <td class="r">${num(ctrmStmtSum(d))}</td><td>${d.pre ? `<span class="ctrmBadge pre">${d.pre}</span>` : ""}${n ? `<span class="ctrmBadge">작성 ${n}</span>` : so.length ? `<span class="ctrmBadge" title="출고 전에 주문번호 ${esc(so.join(", "))}로 작성함">주문 때 작성</span>` : '<span class="ctrmBadge n">미작성</span>'}</td></tr>`; }).join("")}</tbody></table>
     ${rows.length ? "" : `<div class="ctrmEmpty">${CTRM.sRows.length ? "조건에 맞는 출고 · 주문 건이 없습니다" : "아마란스에서 출고 건을 아직 못 받았어요 — 10분마다 받아 옵니다"}</div>`}`;
-  CTRM.sdAll = CTRM.list.filter(c => c.kind === "stmt" && ctrmQOk(c.date, c.cust, c.pj, [c.ref, c.cust, c.pj, ...(c.rows || []).map(r => r.name)].join(" ")));
+  CTRM.sdAll = CTRM.list.filter(c => c.kind === "stmt" && ctrmQOk(c.date, c.cust, c.pj, [c.ref, ...(c.refs || []), c.cust, c.pj, ...(c.rows || []).map(r => r.name)].join(" ")));
   const L = CTRM.sdAll.filter(c => ctrmPass("sdone", CTRM_SD, c)).sort((a, b) => String(b.cat).localeCompare(String(a.cat)));
   $("#ctrmCnt").textContent = L.length + "건";
   $("#ctrmList").innerHTML = `<table class="ctrmT">${ctrmHead("sdone", CTRM_SD)}<tbody>${L.map(c => `<tr data-id="${esc(c.id)}" title="작성 ${esc(c.cby || "")}">
-      <td>${esc(c.date)}</td><td class="mono">${esc(c.ref || "")}${/^SO/.test(c.ref || "") ? '<span class="ctrmBadge pre" style="margin-left:4px">미출고</span>' : ""}</td><td class="l">${esc(c.cust)}</td><td class="l">${esc(c.pj || "")}</td><td class="r">${num(c.tot || 0)}</td>
+      <td>${esc(c.date)}</td><td class="mono" title="${esc((c.refs || []).join(", "))}">${esc(c.ref || "")}${(c.refs || []).length > 1 ? ` <span class="ctrmMut">외 ${c.refs.length - 1}건</span>` : ""}${/^SO/.test(c.ref || "") ? '<span class="ctrmBadge pre" style="margin-left:4px">미출고</span>' : ""}</td><td class="l">${esc(c.cust)}</td><td class="l">${esc(c.pj || "")}</td><td class="r">${num(c.tot || 0)}</td>
       <td><span class="ctrmAct"><button class="ib" data-pdf="${esc(c.id)}" title="PDF 열기">PDF</button><button class="ib" data-dl="${esc(c.id)}" title="PDF 내려받기">받기</button><button class="ib" data-ed="${esc(c.id)}">수정</button><button class="ib" data-del="${esc(c.id)}">삭제</button></span></td></tr>`).join("")}</tbody></table>
     ${L.length ? "" : '<div class="ctrmEmpty">아직 작성한 거래명세서가 없습니다</div>'}`;
 }
@@ -6290,17 +6303,23 @@ $("#ctrmQF").addEventListener("click", (e) => { const b = e.target.closest("[dat
   const inp = $(`#ctrmQF [data-q=${b.dataset.qcal}]`), pop = rsnCal(b, normDate(inp.value), "", (d) => { pop.remove(); CTRM.calPop = null; inp.value = d; CTRM.qf[b.dataset.qcal] = d; ctrmRender(); });
   pop.classList.add("ctrmCalPop"); CTRM.calPop = pop; });
 $("#ctrmQReset").addEventListener("click", () => { for (const el of $$("#ctrmQF [data-q]")) el.value = ""; for (const k in CTRM.qf) CTRM.qf[k] = ""; CTRM.f.ord = {}; CTRM.f.done = {}; CTRM.f.gord = {}; CTRM.f.gdone = {}; CTRM.f.quote = {}; ctrmRender(); });
-$("#ctrmOrd").addEventListener("click", (e) => { const sr = e.target.closest("tr[data-sno]"); if (sr){ CTRM.sSel = sr.dataset.sno; ctrmRender(); return; } const g = e.target.closest("tr[data-g]"); if (g){ CTRM.gSel = g.dataset.g; ctrmRender(); return; } const tr = e.target.closest("tr[data-k]"); if (!tr) return; const k = tr.dataset.k, r = (CTRM.rows || []).find(x => x.key === k), cur = ctrmSels(), c0 = cur.length && (CTRM.rows.find(x => x.key === cur[0]) || {}).o;
+$("#ctrmOrd").addEventListener("click", (e) => { const sr = e.target.closest("tr[data-sno]"); if (sr){ const k = sr.dataset.sno;
+    /* 거래명세서 합쳐 쓰기(2026-11-18 사용자: "계약서처럼 3건을 같이 작성") — 같은 고객 · 같은 종류(출고끼리 / 미출고 주문끼리) 줄을 차례로 누르면 함께 골라짐, 다시 누르면 빠짐. 관리자 먼저(ctrmStmtMultiOn) */
+    if (ctrmStmtMultiOn()){ const find = (no) => (CTRM.sRows || []).find(x => x.no === no), r = find(k), cur = ctrmSSels(), c0 = cur.length && find(cur[0]);
+      CTRM.sSels = cur.includes(k) ? cur.filter(x => x !== k) : r && c0 && c0.trCd === r.trCd && c0.cust === r.cust && !!c0.pre === !!r.pre ? [...cur, k] : [k]; }
+    else CTRM.sSels = [k];
+    CTRM.sSel = CTRM.sSels[0] || null; ctrmRender(); return; } const g = e.target.closest("tr[data-g]"); if (g){ CTRM.gSel = g.dataset.g; ctrmRender(); return; } const tr = e.target.closest("tr[data-k]"); if (!tr) return; const k = tr.dataset.k, r = (CTRM.rows || []).find(x => x.key === k), cur = ctrmSels(), c0 = cur.length && (CTRM.rows.find(x => x.key === cur[0]) || {}).o;
   CTRM.sels = cur.includes(k) ? cur.filter(x => x !== k) : r && c0 && c0.trCd === r.o.trCd && c0.cust === r.o.cust ? [...cur, k] : [k]; CTRM.sel = CTRM.sels[0] || null; ctrmRender(); });
 $("#ctrmOrd").addEventListener("dblclick", (e) => { const g = e.target.closest("tr[data-g]"); if (!g) return; CTRM.gSel = g.dataset.g; $("#ctrmNew").click(); });
-$("#ctrmOrd").addEventListener("dblclick", (e) => { const sr = e.target.closest("tr[data-sno]"); if (sr){ CTRM.sSel = sr.dataset.sno; $("#ctrmNew").click(); } });
+$("#ctrmOrd").addEventListener("dblclick", (e) => { const sr = e.target.closest("tr[data-sno]"); if (sr){ CTRM.sSel = sr.dataset.sno; CTRM.sSels = [sr.dataset.sno]; $("#ctrmNew").click(); } });
 $("#ctrmOrd").addEventListener("dblclick", (e) => { const tr = e.target.closest("tr[data-k]"); if (!tr) return; CTRM.sel = tr.dataset.k; CTRM.sels = [tr.dataset.k]; $("#ctrmNew").click(); });
-$("#ctrmNew").addEventListener("click", async () => {   if (CTRM.kind === "stmt"){ const d = (CTRM.sRows || CTRM.stmts || []).find(x => x.no === CTRM.sSel); if (!d) return toast("출고 · 주문 건을 먼저 골라 주세요", true);
-    const has = CTRM.list.filter(c => c.kind === "stmt" && c.ref === d.no);
-    if (d.pre) toast(`출고 전 주문이라 주문번호 ${d.no}로 작성해요 — 납품장소 · 유효기간 = 미출고`);
-    if (has.length && !(await askConfirm(`이 ${d.pre ? "주문" : "출고"} 건은 이미 거래명세서가 ${has.length}건 있어요.\n새로 하나 더 작성할까요?`, { title: "이미 작성한 건", ok: "새로 작성" }))) return;
-    if (d.lines.length > 5) toast(`품목이 ${d.lines.length}줄이라 양식(5줄)에 앞 5줄만 들어갑니다`, true);
-    return ctrmQuoteForm(ctrmStmtPrefill(d)); }
+$("#ctrmNew").addEventListener("click", async () => {   if (CTRM.kind === "stmt"){ const all = CTRM.sRows || CTRM.stmts || [], ds = ctrmSSels().map(no => all.find(x => x.no === no)).filter(Boolean), d = ds[0]; if (!d) return toast("출고 · 주문 건을 먼저 골라 주세요", true);
+    const has = CTRM.list.filter(c => c.kind === "stmt" && ds.some(x => ctrmStmtHas(c, x.no)));
+    if (d.pre) toast(`출고 전 주문이라 주문번호 ${ds.map(x => x.no).join(", ")}로 작성해요 — 납품장소 · 유효기간 = 미출고`);
+    if (has.length && !(await askConfirm(`${ds.length > 1 ? "고른 건 중에" : "이 " + (d.pre ? "주문" : "출고") + " 건은"} 이미 거래명세서가 ${has.length}건 있어요.\n새로 하나 더 작성할까요?`, { title: "이미 작성한 건", ok: "새로 작성" }))) return;
+    const MX = ctrmStmtMultiOn() ? CTRM_QMAX : 5, nl = ds.reduce((t, x) => t + x.lines.length, 0);
+    if (nl > MX) toast(`품목이 ${nl}줄이라 양식(${MX}줄)에 앞 ${MX}줄만 들어갑니다`, true);
+    return ctrmQuoteForm(ds.length > 1 ? ctrmStmtPrefillN(ds) : ctrmStmtPrefill(d)); }
   if (CTRM.kind === "guar"){ const c = (CTRM.gRows || []).find(x => x.id === CTRM.gSel); if (!c) return toast("물품공급계약서를 먼저 골라 주세요", true);
     const has = CTRM.list.filter(g => g.kind === "guar" && g.ref === c.id);
     if (has.length && !(await askConfirm(`이 계약서는 이미 연대보증계약서가 ${has.length}건 있어요.\n새로 하나 더 작성할까요?`, { title: "이미 작성한 건", ok: "새로 작성" }))) return;

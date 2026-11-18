@@ -2649,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261118.115221";
+const BUILD = "20261118.171217";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -6099,7 +6099,8 @@ function ctrmForm(it){
         <div class="ctrmV">
           <label>지급 방식</label><span class="ctrmIn ctPayM"><button type="button" class="ib" data-paym="adv">선금 + 잔금</button><button type="button" class="ib" data-paym="none">선금 없음 · 납품 후 100%</button><button type="button" class="ib" data-paym="full">납품 전 100%</button></span>
           <label>선금</label><span class="ctrmIn"><input data-c="advP" inputmode="numeric" value="${v("advP")}">% <span id="ctBal" class="ctrmMut"></span></span>
-          <label id="ctDaysL">잔금 지급</label><span class="ctrmIn ctDays">납품 후 <input data-c="days" inputmode="numeric" value="${v("days")}">일 이내 <button type="button" class="ib" data-dq="30">30일</button><button type="button" class="ib" data-dq="60">60일</button></span>
+          <label class="ctAdvDR">선금 지급</label><span class="ctrmIn ctAdvDR">계약 후 <input data-c="advD" inputmode="numeric" value="${v("advD")}">일 이내</span>
+          <label id="ctDaysL" class="ctDaysR">잔금 지급</label><span class="ctrmIn ctDays ctDaysR">납품 후 <input data-c="days" inputmode="numeric" value="${v("days")}">일 이내 <button type="button" class="ib" data-dq="30">30일</button><button type="button" class="ib" data-dq="60">60일</button></span>
           <label>계약 시작</label><span class="ctrmD"><input data-c="from" value="${v("from")}" placeholder="시작일"><button type="button" class="ib" data-cal="from">📅</button></span>
           <label>계약 끝</label><span class="ctrmD"><input data-c="to" value="${v("to")}" placeholder="끝나는 날"><button type="button" class="ib" data-cal="to">📅</button></span>
         </div>
@@ -6142,6 +6143,9 @@ function ctrmForm(it){
     $$("[data-paym]", box).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.paym === mode)));
     $$("[data-dq]", box).forEach(b => { b.style.display = full ? "none" : ""; b.setAttribute("aria-pressed", String(String(x.days) === b.dataset.dq)); });
     $("#ctDaysL").textContent = none ? "대금 지급" : full ? "선금 지급" : "잔금 지급";
+    /* 2026-11-18 사용자: 선금 지급 = 계약 후 (N)일 칸(선금 + 잔금 · 납품 전 100%), 납품 전 100% 는 납품 후 칸을 숨김. 예전 계약서를 열면 예전 그대로 */
+    $$(".ctAdvDR", box).forEach(el => el.style.display = rule1118 && (mode === "adv" || mode === "full") ? "" : "none");
+    $$(".ctDaysR", box).forEach(el => el.style.display = rule1118 && full ? "none" : "");
     $("#ctCalc").innerHTML = sup ? `<div class="ctrmST">금액 안내</div><div><span>공급가액</span><b>${num(sup)}</b></div><div><span>부가세</span><b>${num(vat)}</b></div><div class="t"><span>총액</span><b>${num(tot)}원</b></div><div class="k">${ctrmKor(tot)}원</div>` : "";
     $("#ctPay").innerHTML = sup ? `<div><span>선금</span><b>${num(adv)}원</b></div><div><span>잔금</span><b>${num(tot - adv)}원</b></div>${x.from && x.to ? `<div><span>계약기간</span><b>${esc(x.from)} ~ ${esc(x.to)}</b></div>` : ""}` : "";
     const nb = $("#ctNo"); if (nb && isNew) nb.textContent = `제${ctrmNextNo(/^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : todayISO())} 호`; };
@@ -6149,6 +6153,7 @@ function ctrmForm(it){
   /* 2026-11-17 사용자: 품목 칸(모듈 · 인버터 · 모니터링)을 고치면 ① '없음' 뒤에 이어 쓴 것은 '없음' 을 뗌 ② 프로젝트명 끝 '기자재(…) 납품의 건' 의 괄호를 칸에 값 있는 품목대로 */
   /* 2026-11-17 사용자 "기존 내용은 절대 변경하면 안돼" — 그 전에 저장된 계약서를 열면 프로젝트명 · 일수를 저절로 바꾸지 않음 */
   const rule1117 = !!it.draft || !it.cat || String(it.cat) >= "2026-11-17 13:50";
+  const rule1118 = ctrmPay18On() && (!!it.draft || !it.cat || String(it.cat) >= CTRM_RULE_1118);   /* 선금 지급 일수 칸 · 특약사항 / 제4조 지급 방식별 문구 (서버 _contract.js RULE_1118 과 같은 시각) */
   const pjSync = () => { if (!rule1117) return; const has = (k) => { const s = ($(`[data-c="${k}"]`, box) || {}).value || ""; return !!s.trim() && s.trim() !== "없음"; };
     const cats = [has("gMod") && "모듈", has("gInv") && "인버터", has("gMon") && "모니터링"].filter(Boolean); if (!cats.length) return;
     const pj = $('[data-c="pj"]', box), m = pj && /^(.*기자재\()([^)]*)(\)\s*납품의\s*건\s*)$/.exec(pj.value); if (!m) return;
@@ -6161,6 +6166,7 @@ function ctrmForm(it){
       if (m.dataset.paym === "none") ai.value = "0";
       else if (m.dataset.paym === "full"){ ai.value = "100"; di.value = "5"; di.classList.remove("bad"); }
       else { if (ai.value.trim() === "0" || wasFull) ai.value = ""; ai.readOnly = false; ai.focus(); }
+      { const ad = $("[data-c=advD]", box); if (rule1118 && ad && /^(|5|7)$/.test(ad.value.trim())){ if (m.dataset.paym === "full") ad.value = "5"; else if (m.dataset.paym === "adv") ad.value = "7"; } if (ad) ad.classList.remove("bad"); }   /* 선금 지급 기본 — 납품 전 100% 5일 · 선금 + 잔금 7일(원본 양식) */
       if (m.dataset.paym !== "full" && wasFull && /^(0|5)$/.test(di.value.trim())){ di.value = ""; di.readOnly = false; }
       ai.classList.remove("bad"); }
     if (q){ const di = $("[data-c=days]", box); di.value = q.dataset.dq; di.classList.remove("bad"); }
@@ -6193,6 +6199,9 @@ function ctrmForm(it){
   /* 자동 임시저장(이 PC) — 열쇠는 주문번호|현장(임시저장 번호가 생겨도 같은 열쇠), 발주현황 연동 고른 것도 같이 */
   fdAttach(box, "supply:" + (!isNew && it.id ? it.id : kk.join(",")), { reopen: () => ctrmForm(it), extra: { get: () => ({ ords: it.ords || [] }), set: (x) => { if (Array.isArray(x.ords)) it.ords = x.ords; } } });
   { const ai = $("[data-c=advP]", box), di = $("[data-c=days]", box); if (rule1117 && ai && di && ai.value.trim() === "100" && /^0?$/.test(di.value.trim())) di.value = "5"; }   /* 예전 납품 전 100%(일수 0) → 5 */
+  { const ai = $("[data-c=advP]", box), di = $("[data-c=days]", box), ad = $("[data-c=advD]", box), p = ai ? ai.value.trim() : "";   /* 선금 지급 일수가 비었으면 — 납품 전 100% 는 예전 일수 칸 값(없으면 5), 선금 + 잔금은 7 */
+    if (rule1118 && ad && !ad.value.trim() && p !== "" && p !== "0") ad.value = p === "100" ? (Number(di && di.value) > 0 ? String(Number(di.value)) : "5") : "7"; }
+  box.dataset.pay18 = rule1118 ? "1" : "";   /* 저장 · 미리보기 때 서버가 새 지급 문구를 쓰는 표시 */
   pjSync();   /* 창을 열 때(임시저장 불러온 뒤)도 프로젝트명 괄호를 품목 칸대로 (2026-11-17 사용자: "다시 해봤는데 수정이 안돼") */
   ordPaint();
   calc();
@@ -6223,10 +6232,13 @@ function ctrmOrdPick(it, done){
   draw(); setTimeout(() => $(".ctrmOpQ", h).focus(), 0);
 }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("#ctrmOrdHost")){ e.stopPropagation(); e.preventDefault(); $("#ctrmOrdHost").remove(); } }, true);
+const CTRM_RULE_1118 = "2026-11-18 17:00";   /* 서버 api/_contract.js RULE_1118 과 같게 — 이 시각 뒤 저장 · 새 계약서만 새 지급 문구 */
+const CTRM_PAY18_TEAM = false;   /* 2026-11-18 지급 방식별 문구 · 선금 지급 일수 칸 — 관리자 먼저(사용자 고름). 팀원에게 열 때 true */
+const ctrmPay18On = () => !!S.user && (S.user.role === "admin" || CTRM_PAY18_TEAM);
 function ctrmRead(it){
   const box = $("#modalHost .ctrmF"), g = (k) => { const el = $(`[data-c=${k}]`, box); return el ? el.value.trim() : ""; }, gb = (k) => $(`[data-b=${k}]`, box).value.trim();
   const n = (s) => s === "" ? "" : Number(String(s).replace(/[^\d.]/g, ""));
-  return { id: it.id || "", no: it.no || "", so: it.so, site: it.site, cust: it.cust, trCd: it.trCd, date: normDate(g("date")), pj: g("pj"), sup: n(g("sup")), advP: n(g("advP")), days: n(g("days")),
+  return { id: it.id || "", no: it.no || "", so: it.so, site: it.site, cust: it.cust, trCd: it.trCd, date: normDate(g("date")), pj: g("pj"), sup: n(g("sup")), advP: n(g("advP")), days: n(g("days")), advD: n(g("advD")), pay18: box.dataset.pay18 === "1",
     from: normDate(g("from")), to: normDate(g("to")), period: "", items: g("items").split("\n").map(s => s.trim()).filter(Boolean),
     gMod: g("gMod"), gInv: g("gInv"), gMon: g("gMon"), cap: g("cap"), ords: (it.ords || []).slice(), sos: (it.sos || []).slice(), keys: (it.keys || []).slice(), buyer: { name: gb("name"), reg: gb("reg"), ceo: gb("ceo"), addr: gb("addr") } };
 }
@@ -6235,6 +6247,7 @@ function ctrmMiss(x){
   const box = $("#modalHost .ctrmF"), bad = [], mark = (sel, l) => { const el = $(sel, box); if (el) el.classList.add("bad"); bad.push(l); }, day = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
   if (x.advP === "" || x.advP < 0 || x.advP > 100) mark("[data-c=advP]", "선금 %");
   if (x.days === "") mark("[data-c=days]", "잔금 지급 일수");
+  { const ad = $("[data-c=advD]", box); if (ad && ad.offsetParent && !(x.advD > 0)) mark("[data-c=advD]", "선금 지급 일수"); }   /* 칸이 보일 때만(2026-11-18) */
   if (!day(x.from)) mark("[data-c=from]", "계약 시작일"); if (!day(x.to) || x.to < x.from) mark("[data-c=to]", "계약 끝나는 날");
   if (!day(x.date)) mark("[data-c=date]", "작성일"); if (!x.pj) mark("[data-c=pj]", "프로젝트명"); if (!(x.sup > 0)) mark("[data-c=sup]", "공급가액");
   for (const [k, l] of [["name", "상호"], ["reg", "사업자번호"], ["ceo", "대표자"], ["addr", "주소"]]) if (!x.buyer[k]) mark(`[data-b=${k}]`, "구매자 " + l);

@@ -2649,7 +2649,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261118.171217";
+const BUILD = "20261120.151222";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -7293,6 +7293,7 @@ function rcCompute(){
   /* 거래처별 가장 많이 쓴 결제조건 — 엑셀 조건(61일 같은 날수는 30/60/90 중 가까운 것)도 센다. scripts/gw-sync.js termN 과 같게 */
   for (const r of RC.rows){ if (r._isOrd) continue; const t = rcTermN((r.u && r.u.term) || (r.src === "엑셀" ? r.term : "")); if (t){ ct[r.cust] = ct[r.cust] || {}; ct[r.cust][t] = (ct[r.cust][t] || 0) + 1; } }
   RC.custTerm = Object.fromEntries(Object.entries(ct).map(([c, m]) => [c, Object.entries(m).sort((a, b) => b[1] - a[1])[0][0]]));
+  if (rcCtOn()) for (const [c, t] of Object.entries(RC.cterm || {})) if (t) RC.custTerm[c] = t;   /* 거래처 고정 조건(2026-11-20 [일괄적용]) — 관리자 화면만 */
   const kids = {};
   for (const r of RC.rows){ const l = r.u && r.u.link; if (l && byNo.has(l)) (kids[l] = kids[l] || []).push(r); }
   /* 주문(계산서 미발행) — 선입금은 주문에 적고, 그 주문번호로 마감이 나오면 그 채권의 입금으로 합쳐 보인다 */
@@ -7466,7 +7467,7 @@ function rcApply(){
     const j = structuredClone(RC.raw);
     RC.trial = true;   /* 2026-09-30 사용자: 새 화면을 모든 팀원에게 (예전엔 관리자 시범) */
     RC.erpShow = RC.trial ? (j.erpFrom || "2026-09-30") : "2026-10-01";
-    RC.moves = j.moves || []; RC.ack = j.ack || "";
+    RC.moves = j.moves || []; RC.ack = j.ack || ""; RC.cterm = j.cterm || {};
     RC.ordLinks = j.ordLinks || []; RC._ordUse = new Set();
     RC.orders = (j.orders || []).filter(o => RC.trial || (o.dt || "") >= "2026-10-01");   /* 팀원 화면은 예전처럼 10/1 부터 */
     /* 고른 주문(pick "in") 중 아직 계산서가 덜 나간 것 = 계산서 미발행 줄. 날짜는 납기일자(납품한 날 계산서를 끊으니까) */
@@ -8083,6 +8084,29 @@ $("#rcXls").addEventListener("click", () => {
 /* 입금일 달력 단추 (채권 · 주문 창 공통) */
 $("#modalHost").addEventListener("click", (e) => { const b = e.target.closest(".rcD-pay .pdb"); if (!b) return; e.preventDefault(); const w = b.closest(".pdw"), t = $("#rcPd", w), h = $(".pdh", w); const c = normDate(t.value); h.value = isDate(c) ? c : todayISO(); try{ h.showPicker(); }catch{ h.click(); } });
 $("#modalHost").addEventListener("change", (e) => { const h = e.target.closest(".rcD-pay .pdh"); if (!h || !h.value) return; const t = $("#rcPd", h.closest(".pdw")); t.value = h.value; t.dispatchEvent(new Event("change")); });
+/* 거래처 일괄 결제조건(2026-11-20 사용자: "이 거래처 모두 결제조건 동일하게 세팅할 수 있는 란 · 짧게 [일괄적용]") — 관리자만.
+   고르면 recv-cterm 에 거래처 고정 조건 저장 → 앞으로 들어오는 건(자동 수집 · 주문 올리기)은 이 조건. '지금 건도 모두'를 누르면 있는 건도 덮어씀 */
+const rcCtOn = () => !!S.user && S.user.role === "admin";
+const rcCtBtn = (cust) => { const f = (RC.cterm || {})[cust]; return `<button class="btn sm" id="rcTermAll" style="margin-left:8px">일괄적용</button>${f ? `<span class="hint">고정 ${rcTermL(f)}</span>` : ""}`; };
+function rcCtDlg(cust, t0, reopen, after){
+  const fixed = (RC.cterm || {})[cust] || ""; let t = fixed || t0 || "";
+  const count = (tt) => (RC.rows || []).filter(r => r.cust === cust && (r._term || "") !== tt).length;
+  let host = $("#confirmHost"); if (!host){ host = document.createElement("div"); host.id = "confirmHost"; document.body.appendChild(host); }
+  const draw = () => { host.innerHTML = `<div class="modal" style="z-index:200"><div class="box" style="max-width:420px"><h2 style="margin-bottom:8px">일괄적용</h2>
+    <div style="font-size:13.5px;line-height:1.9;color:var(--ink-2)"><div>거래처 : <b>${esc(cust)}</b></div><div>지금 고정 : <b>${fixed ? rcTermL(fixed) : "없음"}</b></div>
+    <div>결제조건 : <span class="seg">${["현금", "30", "60", "90"].map(x => `<button type="button" data-ct="${x}" aria-pressed="${t === x}">${rcTermL(x)}</button>`).join("")}</span></div></div>
+    <div class="row" style="margin-top:14px;gap:6px;flex-wrap:wrap"><button class="btn quiet" data-no>취소</button>${fixed ? '<button class="btn quiet" data-off>고정 풀기</button>' : ""}<span class="sp"></span>
+    <button class="btn" data-all ${t ? "" : "disabled"}>지금 건도 모두${t ? ` (${num(count(t))}건)` : ""}</button><button class="btn primary" data-new ${t ? "" : "disabled"}>앞으로 건만</button></div></div></div>`;
+    host.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => { t = b.dataset.ct; draw(); });
+    host.querySelector("[data-no]").onclick = () => { host.innerHTML = ""; };
+    const go = async (term, all) => { try{ const j = await rcAct({ act: "custTermSet", cust, term, all }, reopen); host.innerHTML = "";
+      toast(!term ? "고정을 풀었습니다." : all ? `${rcTermL(term)}로 고정 · ${num(j.n)}건 바꿈` : `앞으로 들어오는 건은 ${rcTermL(term)}`); if (after) after(); }catch(x){ toast(x.message, true); } };
+    if (host.querySelector("[data-off]")) host.querySelector("[data-off]").onclick = () => go("", false);
+    host.querySelector("[data-new]").onclick = () => t && go(t, false);
+    host.querySelector("[data-all]").onclick = async () => { if (!t) return; host.innerHTML = ""; if (await askConfirm(`<b>${esc(cust)}</b> 의 지금 있는 건 ${num(count(t))}건을 모두 <b>${rcTermL(t)}</b>로 바꿀까요?`, { title: "지금 건도 모두", ok: "바꾸기" })) go(t, true); };
+  };
+  draw();
+}
 async function rcAct(body, reopen){
   if (RC.test) throw new Error("테스트 화면이라 고칠 수 없어요 — 채권관리에서 고쳐 주세요.");
   const j = await api("POST", "/api/recv", body);
@@ -8263,7 +8287,7 @@ function rcOrderOpen(no, pickSite){   /* pickSite = 현장별로 나눈 줄에�
           ${irow("계산서 여부", `<span class="rcF-ox"><span>발행</span><span class="on x">미발행</span></span>`)}
           ${irow("현장명", cur ? `<b>${esc(cur.site)}</b>` : pickSite ? `<b>${esc(pickSite)}</b>` : `<b>${(o.sites || []).length > 1 ? o.sites.map(x => esc(x)).join("<br>") : esc(o.site || "(비고 없음)")}</b>`)}
           ${irow("고객사", esc(o.cust || "-"))}
-          ${irow("결제조건", `<span class="seg rcTermSeg">${["현금", "30", "60", "90"].map(x => `<button type="button" data-term="${x}" aria-pressed="${tNow === x}">${rcTermL(x)}</button>`).join("")}</span>${!tNow ? `<span class="hint">${tGuess ? "미지정 · 거래처 최다 " + rcTermL(tGuess) : "미지정"}</span>` : ""}`)}
+          ${irow("결제조건", `<span class="seg rcTermSeg">${["현금", "30", "60", "90"].map(x => `<button type="button" data-term="${x}" aria-pressed="${tNow === x}">${rcTermL(x)}</button>`).join("")}</span>${!tNow ? `<span class="hint">${tGuess ? "미지정 · 거래처 최다 " + rcTermL(tGuess) : "미지정"}</span>` : ""}${rcCtOn() ? rcCtBtn(o.cust) : ""}`)}
           ${irow("주문일", esc(o.dt || "-"))}
           ${irow("예정 발행일", `<b>${esc(o.due || "-")}</b><span class="hint">납기일자</span>`)}
           ${irow("주문번호", `<span class="mono">${esc(o.no)}</span><span class="hint">진행 ${rcFgL(o.fg)}</span>`)}
@@ -8309,6 +8333,7 @@ function rcOrderOpen(no, pickSite){   /* pickSite = 현장별로 나눈 줄에�
     try{ await rcAct(cur ? { act: "pay", no, d, parts: [{ s: cur.site, a }], m: $("#rcPm").value } : { act: "pay", no, d, a, m: $("#rcPm").value }); again(); toast(`선입금 ${rcWon(a)}원을 적었습니다.`); }catch(x){ err(x); } };
   /* [저장] = 비고가 바뀌었으면 저장하고 창을 닫는다(2026-10-14 사용자: 저장을 눌러도 창이 그대로고 "비고를 저장했습니다"만 떠서 헷갈림). 선입금 · 결제조건은 누르는 즉시 이미 저장돼 있다 */
   $("#rcNoteOk").onclick = async () => { try{ if (($("#rcNote").value || "") !== (u.note || "")) await rcAct({ act: "note", no, note: $("#rcNote").value }); $("#modalHost").innerHTML = ""; toast("저장했습니다."); }catch(x){ err(x); } };
+  if ($("#rcTermAll")) $("#rcTermAll").onclick = () => rcCtDlg(o.cust, u.term || tGuess, null, again);
   box.querySelectorAll("[data-term]").forEach(b => b.onclick = async () => { const t = b.dataset.term === u.term ? "" : b.dataset.term; try{ await rcAct({ act: "term", no, term: t }); again(); toast(t ? `결제조건을 ${rcTermL(t)}로 정했습니다.` : "결제조건을 비웠습니다."); }catch(x){ err(x); } });
   box.querySelectorAll("[data-pdel]").forEach(b => b.onclick = async () => { if (!(await askConfirm("이 선입금을 지울까요? 변경 기록에는 남습니다.", { title: "선입금 삭제", ok: "삭제", danger: true }))) return;
     try{ await rcAct({ act: "payDel", no, pid: b.dataset.pdel }); again(); toast("지웠습니다."); }catch(x){ err(x); } });
@@ -8359,7 +8384,7 @@ function rcOpen(no){
           ${irow("계산서 여부", `<span class="rcF-ox"><span class="${issued ? "on" : ""}">발행</span><span class="${issued ? "" : "on x"}">미발행</span></span>`)}
           ${irow("현장명", `<b>${esc(r._name || r.site || "-")}</b>`)}
           ${irow("고객사", esc(r.cust || "-"))}
-          ${irow("결제조건", `<span class="seg rcTermSeg">${termBtns}</span><button class="lnk" id="rcTermCust" title="이 고객의 결제조건이 안 정해진 건 모두에 같은 조건을 넣습니다">이 고객 미지정 건에 모두 적용</button>`)}
+          ${irow("결제조건", `<span class="seg rcTermSeg">${termBtns}</span>${rcCtOn() ? rcCtBtn(r.cust) : `<button class="lnk" id="rcTermCust" title="이 고객의 결제조건이 안 정해진 건 모두에 같은 조건을 넣습니다">이 고객 미지정 건에 모두 적용</button>`}`)}
           ${irow(r.src === "엑셀" ? "발행일" : "마감일", esc(r.dt || "-"))}
           ${irow("만기일", r._due ? `<b>${esc(r._due)}</b>` : '<span class="hint">결제조건을 골라 주세요</span>')}
           ${r.src === "엑셀" ? irow("엑셀 비고", esc(r.bigo || "-")) : irow("적요", r._rmk ? esc(r._rmk) : '<span class="hint">없음</span>')}
@@ -8397,7 +8422,8 @@ function rcOpen(no){
   </div>`, null, "rcBoxF rcBoxV rcBoxS");
   const box = $("#modalHost"), err = (e) => { $("#mErr").textContent = e.message; };
   box.querySelectorAll("[data-term]").forEach(b => b.onclick = async () => { const t = b.dataset.term === u.term ? "" : b.dataset.term; try{ await rcAct({ act: "term", no, term: t }, no); toast(t ? `결제조건을 ${rcTermL(t)}로 정했습니다.` : "결제조건을 비웠습니다."); }catch(x){ err(x); } });
-  $("#rcTermCust").onclick = async () => { const t = u.term || r._guess; if (!t) return toast("먼저 결제조건을 골라 주세요.", true);
+  if ($("#rcTermAll")) $("#rcTermAll").onclick = () => rcCtDlg(r.cust, u.term || r._guess, no);
+  if ($("#rcTermCust")) $("#rcTermCust").onclick = async () => { const t = u.term || r._guess; if (!t) return toast("먼저 결제조건을 골라 주세요.", true);
     if (!(await askConfirm(`<b>${esc(r.cust)}</b> 의 결제조건이 <b>미지정</b>인 건 모두를 <b>${rcTermL(t)}</b>로 정할까요?\n이미 정한 건은 그대로 둡니다.`, { title: "고객 일괄 적용", ok: "적용" }))) return;
     try{ const j = await rcAct({ act: "termCust", cust: r.cust, term: t, onlyEmpty: true }, no); toast(`${num(j.n)}건에 ${rcTermL(t)}를 넣었습니다.`); }catch(x){ err(x); } };
   $("#rcPd").onchange = (e) => { const d = normDate(e.target.value); if (isDate(d)) e.target.value = d; };
@@ -8477,7 +8503,7 @@ function rcSimHtml(r){
 }
 /* 채권 권한이 없는 팀원 — 보기만 (입력 칸·단추를 치운다. 서버도 막는다) */
 function rcReadOnly(box){
-  box.querySelectorAll(".rcD-pay, #rcNoteOk, #rcTermCust, #rcAddBtn, [data-pdel], [data-psplit], [data-unlink], #rcLinkOk, .rcD-foot").forEach(e => e.remove());
+  box.querySelectorAll(".rcD-pay, #rcNoteOk, #rcTermCust, #rcTermAll, #rcAddBtn, [data-pdel], [data-psplit], [data-unlink], #rcLinkOk, .rcD-foot").forEach(e => e.remove());
   box.querySelectorAll("[data-term]").forEach(b => { b.disabled = true; b.style.cursor = "default"; });
   const ta = box.querySelector("#rcNote"); if (ta){ ta.readOnly = true; if (!ta.value) ta.placeholder = "비고 없음"; }
   const h = box.querySelector(".rcD-head .meta"); if (h) h.insertAdjacentHTML("beforeend", '<span style="color:var(--warn)">보기 전용 — 입금 · 결제조건 입력은 채권관리 권한자만</span>');

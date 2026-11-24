@@ -2651,7 +2651,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261124.171235";
+const BUILD = "20261124.171255";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -9257,7 +9257,7 @@ const chkLinkOf = (k) => { const g = chkGroups().find(x => x.k === k); return g 
 const chkLinkTxt = (l) => `${l.dlv || "납기 미정"} · ${l.pj} · ${l.ids.length}건`;
 /* 여러 현장 발주 건을 같이 골라 등록하면 현장명을 묶어서: 무지1호 · 무지2호 · 무지3호 → 무지1-3호, 띄엄띄엄이면 무지1·3호, 꼴이 다르면 'A 외 n곳' (2026-11-24 사용자). 관리자 먼저 */
 const CHK_SITE_MERGE_TEAM = false;
-const chkSiteMerge = (names) => { const ns = [...new Set(names.map(x => String(x || "").trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y, "ko")); if (ns.length < 2) return ns[0] || "";
+const chkSiteMerge = (names) => { const ns = [...new Set(names.map(x => String(x || "").trim()).filter(Boolean))].sort((x, y) => (/재고/.test(x) - /재고/.test(y)) || x.localeCompare(y, "ko")); if (ns.length < 2) return ns[0] || "";
   const ps = ns.map(n => /^(.*?)(\d+)(\D*)$/.exec(n));   /* 숫자만 다름: 무지1호 · 2호 · 3호 → 무지1-3호 */
   if (ps.every(p => p && p[1] === ps[0][1] && p[3] === ps[0][3])){ const nums = ps.map(p => Number(p[2])).sort((a, b) => a - b);
     return ps[0][1] + (nums.every((v, i) => !i || v === nums[i - 1] + 1) ? nums[0] + "-" + nums[nums.length - 1] : nums.join("·")) + ps[0][3]; }

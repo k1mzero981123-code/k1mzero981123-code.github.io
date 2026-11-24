@@ -2651,7 +2651,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261124.170651";
+const BUILD = "20261124.170904";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -8880,7 +8880,7 @@ function chkPaint0(){
     /* 삭제는 요청 → 관리자 승인 (2026-10-19 사용자) */
     + `<div class="row" style="margin-top:12px">${it.deleted ? `<span class="badge b-crit">삭제된 건 · 요청 ${esc(it.deleted.reqBy || "")} · 승인 ${esc(it.deleted.by || "")} ${esc(String(it.deleted.at || "").slice(0, 16))} — 보기만 됩니다</span>${S.user.role === "admin" ? `<button type="button" class="btn primary" data-crestore>복원</button>` : ""}` : it.delReq
         ? `<span class="badge b-crit" title="${esc(it.delReq.reason || "")}">삭제 요청됨 · ${esc(it.delReq.by)} ${esc(String(it.delReq.at || "").slice(5, 16))}${it.delReq.reason ? " · 사유: " + esc(it.delReq.reason) : ""}</span><button type="button" class="btn quiet" data-cdelx>삭제 취소</button>${S.user.role === "admin" ? `<button type="button" class="btn danger" data-cdel>삭제 승인</button>` : ""}`
-        : chkIsEmpty(it) ? `<button type="button" class="btn quiet" data-cdelnow style="color:var(--high)">삭제</button>` : `<button type="button" class="btn quiet" data-cdelreq style="color:var(--high)">삭제 요청</button>`}<span class="chkMeta chkMetaF">요청 <b>${esc(it.reqBy || it.cby || "")}</b> → 진행 <b>${esc(it.cby || "")}</b> · ${esc((it.cat || "").slice(0, 16))} 등록</span><span class="sp"></span>${S.chkNewBack && S.chkNewBack.id === it.id ? `<button type="button" class="btn quiet" data-cnback title="등록한 건은 그대로 두고, 적었던 값 그대로 등록 창으로">‹ 등록 화면으로</button>` : ""}<button type="button" class="btn quiet" data-cx>닫기</button></div>`;
+        : chkIsEmpty(it) ? `<button type="button" class="btn quiet" data-cdelnow style="color:var(--high)">삭제</button>` : `<button type="button" class="btn quiet" data-cdelreq style="color:var(--high)">삭제 요청</button>`}<span class="chkMeta chkMetaF">요청 <b>${esc(it.reqBy || it.cby || "")}</b> → 진행 <b>${esc(it.cby || "")}</b> · ${esc((it.cat || "").slice(0, 16))} 등록</span><span class="sp"></span>${chkNewBackOn() && !it.deleted && (S.chk || []).some(x => x.id === it.id) ? `<button type="button" class="btn quiet" data-cnback title="등록한 건은 그대로 두고, 적었던 값 그대로 등록 창으로">‹ 등록 화면으로</button>` : ""}<button type="button" class="btn quiet" data-cx>닫기</button></div>`;
 }
 /* 시작 일시 + 며칠째 진행 중 (2026-10-19 사용자) — 시작 = 등록한 때, 완료면 걸린 날수 */
 /* 허가증: 첨부파일 · 기재정보 중 체크한 칸만 쓴다. 체크를 한 번도 안 건드렸으면 내용이 있는 칸이 켜진 것으로 본다 */
@@ -9056,12 +9056,13 @@ window.addEventListener("resize", () => chkPkFit());
 const CHK_NEW_BACK_TEAM = false;
 const chkNewBackOn = () => !!(S.user && S.user.role === "admin") || CHK_NEW_BACK_TEAM;
 function chkNewStash(id){ const md = $("#modalHost .modal"); S.chkNewBack = chkNewBackOn() && md ? { node: md, id } : null; }
-function chkNewBack(){ const b = S.chkNewBack; if (!b) return;
+function chkNewBack(){ const b = S.chkNewBack, cur = (S.chk || []).find(x => x.id === S.chkOpenId);
+  if (!b || !cur || b.id !== cur.id){ if (cur){ S.chkOpenId = null; chkNew(cur); } return; }   /* 예전에 등록한 건 — 그 건 값을 채운 등록 창 (2026-11-24 사용자: 안 나온다) */
   const host = $("#modalHost"); host.innerHTML = ""; host._fdKey = null; host.appendChild(b.node); S.chkOpenId = null;
   const ok = $("#mOk", b.node); if (ok) ok.disabled = false;
   const er = $("#mErr", b.node); if (er) er.innerHTML = `<span style="color:var(--muted)">방금 등록한 건은 그대로 있어요 — 다시 [등록]하면 새로 하나 더 생겨요</span>`; }
-function chkNew(){
-  let type = CHK_T[S.chkType] ? S.chkType : "req";   /* 삭제내역 탭에서 누르면 자료요청으로 */
+function chkNew(pre){   /* pre = 이미 등록한 건 — 그 값을 채운 채 연다([‹ 등록 화면으로], 그 건은 그대로) */
+  let type = pre && CHK_T[pre.type] ? pre.type : CHK_T[S.chkType] ? S.chkType : "req";   /* 삭제내역 탭에서 누르면 자료요청으로 */
   modal(`<h2 data-guard>업무 체크리스트 등록</h2><div class="cnRow"><div><label>종류</label><div class="seg chkNewT" id="cnType">${Object.keys(CHK_T).map(t => `<button type="button" data-cnt="${t}" aria-pressed="${t === type}">${esc(CHK_T[t].name)}</button>`).join("")}</div></div><div class="cnIssW"><label>구분</label><div class="seg chkNewT" id="cnSub">${Object.keys(CHK_ISS_SUB).map(s => `<button type="button" data-csub="${s}" aria-pressed="${s === "dmg"}">${esc(CHK_ISS_SUB[s])}</button>`).join("")}</div></div><div class="cnIssW"><label>사업명</label><div class="seg chkNewT" id="cnPj">${["유통", "구매"].map(p => `<button type="button" data-cpj="${p}" aria-pressed="false">${p}</button>`).join("")}</div></div><div class="cnWho"><label>요청자</label><div class="cnBox cnFix" title="요청자는 로그인한 본인으로 고정">${avImg(S.user.name)}<b>${esc(S.user.name)}</b></div></div><div class="cnWho"><label>진행자 <span class="chkHint">· 담당자</span></label><div class="cnPick"><input type="hidden" id="cnOwn" value="${esc(S.user.name)}"><button type="button" class="cnBox" id="cnOwnBtn">${chkPersonHtml(S.user.name)}<span class="cnCaret">▾</span></button><div class="cnList hidden" id="cnOwnList">${chkPeopleNames().map(n => `<button type="button" data-cown="${esc(n)}">${chkPersonHtml(n)}</button>`).join("")}</div></div></div><div class="cnDueW"><label>예상 납품일 <span style="color:var(--high)">*</span></label><input type="hidden" id="cnDue" value=""><button type="button" class="cnBox chkDueB empty" id="cnDueBtn">📅 날짜 고르기</button></div></div>
     <div class="cnGrid" id="cnOrdV"><div class="cnTW"><label>현장명 <span class="chkHint" id="cnHint"></span></label><input type="text" id="cnTitle" maxlength="120" autocomplete="off"></div><div class="cnOrdW"><label>발주처 <span style="color:var(--high)">*</span></label><input type="text" id="cnOrdCust" maxlength="120" placeholder="발주한 업체" autocomplete="off"></div>
       ${[["m", "모듈"], ["i", "인버터"]].map(([k, lab]) => `<div class="cnOrdW"><label>${lab} 구매처 <span style="color:var(--high)">*</span> <span class="chkHint">· 해당 없으면 [미지정]</span></label><div class="cnVb"><input type="text" data-rv="${k}" placeholder="${lab} 구매 업체" autocomplete="off"><button type="button" class="ib rqNa" data-rqna title="이 품목은 해당 없음">미지정</button></div></div>`).join("")}</div><div id="cnLink"></div><div id="cnPick"></div><div id="cnIss"></div><div id="cnReqF"></div><label>비고 (없으면 비움)</label><textarea id="cnNote" style="min-height:60px"></textarea>
@@ -9149,7 +9150,20 @@ function chkNew(){
       + (lk ? `<label>발주일자</label><div>${ro(x.od, "현장을 고르면 자동")}</div><label>납품일자</label><div>${ro(x.dlv, "현장을 고르면 자동")}</div><label>접수업체</label><div>${ro(x.rcv, "발주처 — 자동")}</div><label>대응업체</label><div>${ro(x.rsp, "구매처 — 자동")}</div>`
         : `<label>접수업체</label><div><input type="text" id="cnRcv" value="${esc(keep.rcv)}" placeholder="접수업체" autocomplete="off"></div><label>대응업체</label><div><input type="text" id="cnRsp" value="${esc(keep.rsp)}" placeholder="대응업체 (여럿이면 · 로 나눔)" autocomplete="off"></div>`) + `</div>`;
   };
+  if (pre){ const ri = pre.reqInfo || {}, oi = pre.ordInfo || {}, inf = pre.info || {};
+    link = pre.link && pre.type !== "ord" ? { ...pre.link, ids: [...(pre.link.ids || [])] } : null;
+    if (pre.type === "iss"){ sub = pre.sub || "dmg"; issPj = inf.pj || ""; for (const n of pre.help || []) issHelp.add(n); for (const x of $$("#cnSub button")) x.setAttribute("aria-pressed", String(x.dataset.csub === sub)); }
+    if (pre.type === "req" && !link && (ri.cust || ri.due)) reqManual = true;
+    if (!link) $("#cnTitle").value = pre.title || ""; $("#cnNote").value = pre.note || "";
+    if (pre.cby && $("#cnOwn")){ $("#cnOwn").value = pre.cby; $("#cnOwnBtn").innerHTML = chkPersonHtml(pre.cby) + `<span class="cnCaret">▾</span>`; }
+    const due = (pre.v || {}).poDue; if (due){ $("#cnDue").value = due; $("#cnDueBtn").textContent = "📅 " + due; $("#cnDueBtn").classList.toggle("empty", false); }
+    if (pre.type === "ord"){ $("#cnOrdCust").value = oi.cust || ""; for (const [k, v] of [["m", oi.vmod], ["i", oi.vinv]]){ const el = $(`#cnOrdV [data-rv=${k}]`); if (el && v){ el.value = v; const na = v === RQ_NA; el.readOnly = na; const nb = el.nextElementSibling; if (nb) nb.classList.toggle("on", na); } } } }
   draw();
+  if (pre){ const ri = pre.reqInfo || {}, inf = pre.info || {};
+    if (pre.type === "req"){ for (const [id, v] of [["cnRqCust", ri.cust], ["cnRqDue", ri.due]]){ const el = $("#" + id); if (el && !el.readOnly && v) el.value = v; }
+      const vb = $("#cnRqV"); if (vb && !$(".ro", vb) && (ri.vmod || ri.vinv)) vb.innerHTML = rqVndHtml({ m: ri.vmod, i: ri.vinv }, false); }
+    if (pre.type === "iss"){ for (const [id, v] of [["cnOcc", inf.occ], ["cnRcv", inf.rcv], ["cnRsp", inf.rsp]]){ const el = $("#" + id); if (el && v) el.value = v; } }
+    const er = $("#mErr"); if (er) er.innerHTML = `<span style="color:var(--muted)">등록한 건(${esc(pre.title || "")})은 그대로 있어요 — 다시 [등록]하면 새로 하나 더 생겨요</span>`; }
   $("#cnPj").addEventListener("click", (e) => { const b = e.target.closest("[data-cpj]"); if (!b || b.disabled) return; issPj = issPj === b.dataset.cpj ? "" : b.dataset.cpj; issPjPaint(); const bx = $("#modalHost .box"); if (bx) bx.dataset.dirty = "1"; });
   $("#cnSub").addEventListener("click", (e) => { const b = e.target.closest("[data-csub]"); if (!b) return; sub = b.dataset.csub; for (const x of $$("#cnSub button")) x.setAttribute("aria-pressed", String(x === b)); if (!CHK_ISS_LINK(sub)) link = null; draw(); });
   $("#cnIss").addEventListener("click", (e) => {

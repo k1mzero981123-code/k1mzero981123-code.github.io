@@ -2651,7 +2651,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261120.151943";
+const BUILD = "20261124.162201";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -8812,7 +8812,7 @@ function chkPaint0(){
     return `<div class="chkSl${nrOn ? " chkNoReqOn" : ""}"><div class="chkSlH"><span>${esc(label)}</span>${lock ? `<span class="chkLock">🔒 전달됨</span>` : `<span class="chkSlB">${nr ? `<button type="button" class="ib chkNoReq${nrOn ? " on" : ""}" data-cnoreq="${k}" title="${nrOn ? "눌러서 다시 요청으로" : "업체가 요청하지 않은 서류 — 첨부 없이 넘어가요"}">${nrOn ? "✓ 미요청" : "미요청"}</button>` : ""}${nrOn ? "" : `<label class="ib" style="cursor:pointer">${one && list.length ? "↻ 바꾸기" : "＋ 파일"}<input type="file"${one ? "" : " multiple"} hidden data-cup="${k}"></label>`}</span>`}</div>`
       + (list.length ? list.map(x => `<div class="chkF">${fileLink(x)}${lock ? "" : `<button type="button" class="chkX" ${x.oid ? `data-cfref="${esc(x.p)}" data-slot="${k}" data-oid="${esc(x.oid)}"` : `data-cfdel="${esc(x.p)}"`} title="파일 삭제">✕</button>`}</div>`).join("") : `<div class="chkE">${nrOn ? "미요청 — 첨부 없이 넘어가요" : "아직 없음"}</div>`) + `</div>`; };
   const certOther = () => { if (!it.link) return ""; if (!cRows.length) return `<div class="chkCo">연결된 발주 건을 찾을 수 없습니다(취소·삭제?) — 연결을 다시 골라 주세요.</div>`;
-    const refd = new Set(Object.values(f).flat().map(x => x.p)), other = cAll.filter(x => !refd.has(x.p));
+    const refd = new Set(Object.values(f).flat().flatMap(x => [x.p, ...chkCopiesOf(it, x).map(c => c.p)])), other = cAll.filter(x => !refd.has(x.p));
     return `<div class="chkCo"><button type="button" class="ib" data-ccert>🔖 인증서 관리 내역 열기</button> 올린 접수서류는 <b>인증서 관리</b>의 이 현장 첨부자료에도 같이 들어갑니다.${other.length ? `<div style="margin-top:4px">인증서 관리에 이미 있는 자료 ${other.length}개</div>${other.map(x => `<div class="chkF">${fileLink(x)}</div>`).join("")}` : ""}</div>`; };
   const txt = (k, ph, area) => area ? `<textarea data-cv="${k}" placeholder="${esc(ph)}">${esc(v[k] || "")}</textarea>` : `<input type="text" data-cv="${k}" value="${esc(v[k] || "")}" placeholder="${esc(ph)}">`;
   const hint = (t) => `<div class="chkE">${esc(t)}</div>`;
@@ -9239,6 +9239,12 @@ const chkCertKeyOf = (r) => r.site + "|" + (r.dlvFinal || "") + "|" + chkCls(r);
 const chkCertReps = (it) => { const m = new Map(); for (const r of chkLinkRows(it)) if (!m.has(chkCertKeyOf(r))) m.set(chkCertKeyOf(r), r); return [...m.values()]; };
 const chkCertRows = (it) => { const ks = new Set(chkCertReps(it).map(chkCertKeyOf)); if (!ks.size) return [];
   return S.rows.filter(r => !isDead(r) && ks.has(chkCertKeyOf(r))); };
+/* 허가증 · 접수서류는 다른 묶음 대표 건에도 같은 파일을 복사해 둔다 — 그 복사본(이름 · 크기 같은 것, 건마다 하나) 찾기.
+   2026-11-24: 바꾸기 · ✕ 때 첫 건 것만 지워 복사본이 '인증서 관리에 이미 있는 자료'로 쌓이던 것 고침 */
+const chkCopiesOf = (it, x) => { const out = []; if (!x || !x.oid) return out;
+  for (const r of chkLinkRows(it)) if (r.id !== x.oid){ const y = (r.files || []).find(y => y.n === x.n && Number(y.size) === Number(x.size)); if (y) out.push({ row: r, p: y.p }); }
+  return out; };
+const chkDelCopies = async (it, x) => { for (const c of chkCopiesOf(it, x)){ try{ const j = await api("DELETE", `/api/files?id=${encodeURIComponent(c.row.id)}&path=${encodeURIComponent(c.p)}`); c.row.files = j.files; }catch(err){ toast(err.message, true); } } };
 const chkCertKey = (it) => { const r0 = chkLinkRows(it)[0]; return r0 ? r0.site + "|" + (r0.dlvFinal || "") + "|" + chkCls(r0) : ""; };
 /* 인증서 관리 진행 상태 맞추기: 접수서류 체크 → 진행중(대기일 때만), 완료 체크 → 완료 */
 async function chkCertSync(it, to){
@@ -9555,8 +9561,9 @@ document.addEventListener("click", async (e) => {
     $("#modalHost").innerHTML = ""; S.chkOpenId = null; certGroupModal(k); return; }
   const fr = e.target.closest("[data-cfref]"); if (fr){ e.preventDefault();
     if (!(await askConfirm("이 파일을 지울까요?\n인증서 관리에서도 같이 지워집니다.", { title: "파일 삭제", ok: "지우기", danger: true }))) return;
-    try{ const p = fr.dataset.cfref, oid = fr.dataset.oid, row = (S.rows || []).find(r => r.id === oid);
+    try{ const p = fr.dataset.cfref, oid = fr.dataset.oid, row = (S.rows || []).find(r => r.id === oid), ref = (((it.f || {})[fr.dataset.slot]) || []).find(x => x.p === p);
       if (!row || (row.files || []).some(x => x.p === p)){ const j = await api("DELETE", `/api/files?id=${encodeURIComponent(oid)}&path=${encodeURIComponent(p)}`); if (row) row.files = j.files; }
+      if (ref) await chkDelCopies(it, ref);   /* 다른 묶음 대표 건에 복사해 둔 것도 같이 (2026-11-24) */
       const k = await api("POST", "/api/checks", { act: "funref", id: it.id, slot: fr.dataset.slot, p }); chkPut(k.item); toast("파일을 지웠습니다."); }
     catch(err){ toast(err.message, true); }
     return; }
@@ -9666,7 +9673,7 @@ document.addEventListener("change", async (e) => {
     const slot = up.dataset.cup, rep = (slot.startsWith("doc") || slot === "permitFile" || slot === "poFile") ? chkLinkRows(it)[0] : null;
     const pfx = CHK_FPFX[slot] ? `[${CHK_FPFX[slot]}] ` : "";
     if (rep && slot === "permitFile"){   /* 허가증은 1개만 — 있던 것은 지우고 바꿔 끼움 */
-      for (const x of ((it.f || {}).permitFile || [])){ try{ if (x.oid){ const row = (S.rows || []).find(r => r.id === x.oid); if (!row || (row.files || []).some(y => y.p === x.p)){ const j = await api("DELETE", `/api/files?id=${encodeURIComponent(x.oid)}&path=${encodeURIComponent(x.p)}`); if (row) row.files = j.files; } const k = await api("POST", "/api/checks", { act: "funref", id: it.id, slot, p: x.p }); chkPut(k.item); }
+      for (const x of ((it.f || {}).permitFile || [])){ try{ if (x.oid){ const row = (S.rows || []).find(r => r.id === x.oid); if (!row || (row.files || []).some(y => y.p === x.p)){ const j = await api("DELETE", `/api/files?id=${encodeURIComponent(x.oid)}&path=${encodeURIComponent(x.p)}`); if (row) row.files = j.files; } await chkDelCopies(it, x); const k = await api("POST", "/api/checks", { act: "funref", id: it.id, slot, p: x.p }); chkPut(k.item); }
         else { const j = await api("DELETE", `/api/checks?id=${encodeURIComponent(it.id)}&path=${encodeURIComponent(x.p)}`); chkPut(j.item); } }catch(err){ toast(err.message, true); } }
       files.splice(1); }
     let put = 0;

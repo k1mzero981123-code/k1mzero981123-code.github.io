@@ -2651,7 +2651,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261124.170904";
+const BUILD = "20261124.171235";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -9257,12 +9257,20 @@ const chkLinkOf = (k) => { const g = chkGroups().find(x => x.k === k); return g 
 const chkLinkTxt = (l) => `${l.dlv || "납기 미정"} · ${l.pj} · ${l.ids.length}건`;
 /* 여러 현장 발주 건을 같이 골라 등록하면 현장명을 묶어서: 무지1호 · 무지2호 · 무지3호 → 무지1-3호, 띄엄띄엄이면 무지1·3호, 꼴이 다르면 'A 외 n곳' (2026-11-24 사용자). 관리자 먼저 */
 const CHK_SITE_MERGE_TEAM = false;
-const chkSiteMerge = (names) => { const ns = [...new Set(names.map(x => String(x || "").trim()).filter(Boolean))]; if (ns.length < 2) return ns[0] || "";
-  const ps = ns.map(n => /^(.*?)(\d+)(\D*)$/.exec(n));
+const chkSiteMerge = (names) => { const ns = [...new Set(names.map(x => String(x || "").trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y, "ko")); if (ns.length < 2) return ns[0] || "";
+  const ps = ns.map(n => /^(.*?)(\d+)(\D*)$/.exec(n));   /* 숫자만 다름: 무지1호 · 2호 · 3호 → 무지1-3호 */
   if (ps.every(p => p && p[1] === ps[0][1] && p[3] === ps[0][3])){ const nums = ps.map(p => Number(p[2])).sort((a, b) => a - b);
-    const seq = nums.every((v, i) => !i || v === nums[i - 1] + 1);
-    return ps[0][1] + (seq ? nums[0] + "-" + nums[nums.length - 1] : nums.join("·")) + ps[0][3]; }
-  return `${ns[0]} 외 ${ns.length - 1}곳`; };
+    return ps[0][1] + (nums.every((v, i) => !i || v === nums[i - 1] + 1) ? nums[0] + "-" + nums[nums.length - 1] : nums.join("·")) + ps[0][3]; }
+  /* 같은 이름 + (A동)(B동)… → 이름(A-C동) · 나머지는 이름 그대로 ' · ' 로 잇고, 4개 넘으면 '첫 이름 외 n곳' (2026-11-24 사용자: 영주 · 영주(파손)처럼 하나만 나오던 것) */
+  const grp = new Map();
+  for (const n of ns){ const m = /^(.*?)\s*\(([A-Za-z가-힣0-9]{1,2})동\)$/.exec(n); const k = m ? m[1] : n; if (!grp.has(k)) grp.set(k, { plain: false, dong: [] }); const g = grp.get(k); if (m) g.dong.push(m[2]); else g.plain = true; }
+  const parts = [];
+  for (const [k, g] of grp){ if (g.plain) parts.push(k);
+    if (g.dong.length){ const d = [...new Set(g.dong)].sort(), cs = d.map(x => x.length === 1 ? x.charCodeAt(0) : NaN);
+      const seq = d.length > 2 && cs.every((c, i) => !isNaN(c) && (!i || c === cs[i - 1] + 1));
+      parts.push(`${k}(${seq ? d[0] + "-" + d[d.length - 1] : d.join("·")}동)`); } }
+  return parts.length <= 3 ? parts.join(" · ") : `${parts[0]} 외 ${parts.length - 1}곳`; };
+const chkSiteMergeOn = () => !!(S.user && S.user.role === "admin") || CHK_SITE_MERGE_TEAM;
 const chkSiteOfLink = (pl) => { if (!pl) return ""; if (!(S.user && S.user.role === "admin") && !CHK_SITE_MERGE_TEAM) return pl.site;
   const rows = (pl.ids || []).map(id => (S.rows || []).find(r => r.id === id)).filter(Boolean);
   return (rows.length ? chkSiteMerge(rows.map(r => r.site)) : "") || pl.site; };
@@ -9329,9 +9337,10 @@ function chkTypeRows(it, kind){
     const need = (t) => t === "모듈" ? !(no.docModFlash === "Y" && no.docModKs === "Y") : !(no.docInvTest === "Y" && no.docInvKs === "Y");
     const ts = ["모듈", "인버터"].filter(need);
     return nm ? (ts.length ? ts : ["모듈", "인버터"]).map(t => [t, `${t} : ${nm}`, kind === "mfr" && ri.due ? `납기 ${ri.due}` : ""]) : []; }
+  const multiSite = chkSiteMergeOn() && new Set(rows.map(r => r.site)).size > 1;   /* 여러 현장이면 세부에 현장명도 (2026-11-24 사용자) */
   for (const r of rows){ const nm = String((kind === "mfr" ? r.vendor : r.client) || "").trim(); if (!nm || nm === "-") continue;
     const t = String(r.item || "").trim() || "기타"; if (!m.has(t)) m.set(t, { names: new Set(), det: [], dlv: [] });
-    const o = m.get(t); o.names.add(nm); o.det.push([r.maker, r.capacity, r.qty ? r.qty + "개" : ""].filter(Boolean).join(" ")); if (r.dlvFinal) o.dlv.push(r.dlvFinal); }
+    const o = m.get(t); o.names.add(nm); o.det.push([multiSite ? r.site : "", r.maker, r.capacity, r.qty ? r.qty + "개" : ""].filter(Boolean).join(" ")); if (r.dlvFinal) o.dlv.push(r.dlvFinal); }
   const ord = (t) => t === "모듈" ? 0 : t === "인버터" ? 1 : 2;
   /* 제조사 접수 줄에 납기일자도 같이 (2026-10-23 사용자) — 그 품목 발주 건 중 가장 이른 납기 */
   return [...m].sort((a, b) => ord(a[0]) - ord(b[0])).map(([t, o]) => [t, `${t} : ${[...o.names].join(" · ")}`, [o.det.filter(Boolean).join(" / "), kind === "mfr" && o.dlv.length ? "납기 " + [...new Set(o.dlv)].sort((x, y) => isDate(x) && isDate(y) ? x.localeCompare(y) : isDate(x) ? -1 : 1)[0] : ""].filter(Boolean).join(" · ")]);

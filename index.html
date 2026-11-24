@@ -2651,7 +2651,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261124.171255";
+const BUILD = "20261124.171547";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -8824,7 +8824,7 @@ function chkPaint0(){
         /* 왼쪽 체크(첨부파일 · 기재정보)로 고른 칸만 쓸 수 있다, 두 칸 크기 같게 (2026-10-19 사용자) */
         const u = chkPermitUse(it), off = (on) => on ? "" : " chkOffB";
         const ho = it.handoff || null, tLock = !!(ho && ho.ackAt);
-        return `<div class="chkTwo chkPm"><div class="chkPmC${off(u.file)}">${slot("permitFile", "허가증 문서 (1개)", true, !!ho)}</div><div class="chkPmC${off(u.text)}"><div class="chkSl"><div class="chkSlH"><span>허가증 기재정보</span>${tLock ? `<span class="chkLock">🔒 확인됨</span>` : ""}</div><textarea data-cv="permitText" placeholder="허가번호 · 발급일 · 기자재 등"${u.text && !tLock ? "" : " disabled"}>${esc(v.permitText != null ? v.permitText : oldT)}</textarea></div></div></div>`
+        return `<div class="chkTwo chkPm"><div class="chkPmC${off(u.file)}">${slot("permitFile", chkPermitMulti() ? "허가증 문서" : "허가증 문서 (1개)", !chkPermitMulti(), !!ho)}</div><div class="chkPmC${off(u.text)}"><div class="chkSl"><div class="chkSlH"><span>허가증 기재정보</span>${tLock ? `<span class="chkLock">🔒 확인됨</span>` : ""}</div><textarea data-cv="permitText" placeholder="허가번호 · 발급일 · 기자재 등"${u.text && !tLock ? "" : " disabled"}>${esc(v.permitText != null ? v.permitText : oldT)}</textarea></div></div></div>`
           + ((f.permitMod || []).length || (f.permitInv || []).length ? `<div class="chkTwo" style="margin-top:6px">${slot("permitMod", "예전 칸 · 모듈")}${slot("permitInv", "예전 칸 · 인버터")}</div>` : "") + chkHandoffHtml(it); }
       if (k === "mfr"){ const vs = chkTypeRows(it, "mfr"), mc = v.mfrChk || {};   /* 모듈 : 구매처 / 인버터 : 구매처 — 품목마다 체크 (2026-10-19 사용자) */
         if (!vs.length) return txt("mfrName", it.link ? "제조사 이름 (연결된 건에 구매처가 없습니다)" : "제조사 이름 — 발주현황과 연결하면 구매처가 자동으로 나옵니다");
@@ -9257,6 +9257,9 @@ const chkLinkOf = (k) => { const g = chkGroups().find(x => x.k === k); return g 
 const chkLinkTxt = (l) => `${l.dlv || "납기 미정"} · ${l.pj} · ${l.ids.length}건`;
 /* 여러 현장 발주 건을 같이 골라 등록하면 현장명을 묶어서: 무지1호 · 무지2호 · 무지3호 → 무지1-3호, 띄엄띄엄이면 무지1·3호, 꼴이 다르면 'A 외 n곳' (2026-11-24 사용자). 관리자 먼저 */
 const CHK_SITE_MERGE_TEAM = false;
+/* 허가증 문서 여러 개 (2026-11-24 사용자: "현장이 여러 개면 어쩌라고" → "항상 여러 개"). 관리자 먼저 — 팀원에게 열 때 이것 + 서버 api/checks.js PERMIT_MULTI_TEAM 을 같이 true */
+const CHK_PERMIT_MULTI_TEAM = false;
+const chkPermitMulti = () => !!(S.user && S.user.role === "admin") || CHK_PERMIT_MULTI_TEAM;
 const chkSiteMerge = (names) => { const ns = [...new Set(names.map(x => String(x || "").trim()).filter(Boolean))].sort((x, y) => (/재고/.test(x) - /재고/.test(y)) || x.localeCompare(y, "ko")); if (ns.length < 2) return ns[0] || "";
   const ps = ns.map(n => /^(.*?)(\d+)(\D*)$/.exec(n));   /* 숫자만 다름: 무지1호 · 2호 · 3호 → 무지1-3호 */
   if (ps.every(p => p && p[1] === ps[0][1] && p[3] === ps[0][3])){ const nums = ps.map(p => Number(p[2])).sort((a, b) => a - b);
@@ -9716,7 +9719,7 @@ document.addEventListener("change", async (e) => {
     /* 발주현황과 이어진 건의 허가증 · 접수서류 · 발주서 → 그 발주 건 첨부로 올려, 발주현황과 이어진 모든 화면(발주현황 · 인증서 관리 …)에서 보이게 (2026-10-19 사용자) */
     const slot = up.dataset.cup, rep = (slot.startsWith("doc") || slot === "permitFile" || slot === "poFile") ? chkLinkRows(it)[0] : null;
     const pfx = CHK_FPFX[slot] ? `[${CHK_FPFX[slot]}] ` : "";
-    if (rep && slot === "permitFile"){   /* 허가증은 1개만 — 있던 것은 지우고 바꿔 끼움 */
+    if (rep && slot === "permitFile" && !chkPermitMulti()){   /* 허가증은 1개만 — 있던 것은 지우고 바꿔 끼움 (2026-11-24 부터 관리자는 여러 개) */
       for (const x of ((it.f || {}).permitFile || [])){ try{ if (x.oid){ const row = (S.rows || []).find(r => r.id === x.oid); if (!row || (row.files || []).some(y => y.p === x.p)){ const j = await api("DELETE", `/api/files?id=${encodeURIComponent(x.oid)}&path=${encodeURIComponent(x.p)}`); if (row) row.files = j.files; } await chkDelCopies(it, x); const k = await api("POST", "/api/checks", { act: "funref", id: it.id, slot, p: x.p }); chkPut(k.item); }
         else { const j = await api("DELETE", `/api/checks?id=${encodeURIComponent(it.id)}&path=${encodeURIComponent(x.p)}`); chkPut(j.item); } }catch(err){ toast(err.message, true); } }
       files.splice(1); }

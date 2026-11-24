@@ -2651,7 +2651,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261124.162201";
+const BUILD = "20261124.162949";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -9058,7 +9058,7 @@ function chkNew(){
       ${[["m", "모듈"], ["i", "인버터"]].map(([k, lab]) => `<div class="cnOrdW"><label>${lab} 구매처 <span style="color:var(--high)">*</span> <span class="chkHint">· 해당 없으면 [미지정]</span></label><div class="cnVb"><input type="text" data-rv="${k}" placeholder="${lab} 구매 업체" autocomplete="off"><button type="button" class="ib rqNa" data-rqna title="이 품목은 해당 없음">미지정</button></div></div>`).join("")}</div><div id="cnLink"></div><div id="cnPick"></div><div id="cnIss"></div><div id="cnReqF"></div><label>비고 (없으면 비움)</label><textarea id="cnNote" style="min-height:60px"></textarea>
     <div class="err" id="mErr"></div><div class="row"><span class="sp"></span><button class="btn quiet" data-x>취소</button><button class="btn primary" id="mOk">등록</button></div>`, async () => {
       const pl = type === "req" ? (link || selLink()) : type === "iss" && CHK_ISS_LINK(sub) ? link : null;   /* 고른 발주 건이 있으면 현장명은 그 현장명 — 찾기 칸에 친 업체명이 아니라 */
-      const title = pl ? pl.site : $("#cnTitle").value.trim(); if (!title){ $("#cnTitle").focus(); throw new Error("현장명을 적어 주세요."); }
+      const title = pl ? chkSiteOfLink(pl) : $("#cnTitle").value.trim(); if (!title){ $("#cnTitle").focus(); throw new Error("현장명을 적어 주세요."); }
       if (type === "ord" && !$("#cnDue").value){ $("#cnDueBtn").click(); throw new Error("예상 납품일을 골라 주세요 (필수)."); }   /* 2026-10-20 사용자: 필수 */
       /* 발주등록 고정값 — 발주처 · 구매처(모듈 · 인버터, 해당 없으면 [미지정]) (2026-10-28 사용자) */
       let ordInfo = null;
@@ -9232,6 +9232,17 @@ function chkPickHtml(q, it, sel){
 }
 const chkLinkOf = (k) => { const g = chkGroups().find(x => x.k === k); return g ? { ids: g.ids, site: g.site, dlv: g.dlv, pj: g.pj } : null; };
 const chkLinkTxt = (l) => `${l.dlv || "납기 미정"} · ${l.pj} · ${l.ids.length}건`;
+/* 여러 현장 발주 건을 같이 골라 등록하면 현장명을 묶어서: 무지1호 · 무지2호 · 무지3호 → 무지1-3호, 띄엄띄엄이면 무지1·3호, 꼴이 다르면 'A 외 n곳' (2026-11-24 사용자). 관리자 먼저 */
+const CHK_SITE_MERGE_TEAM = false;
+const chkSiteMerge = (names) => { const ns = [...new Set(names.map(x => String(x || "").trim()).filter(Boolean))]; if (ns.length < 2) return ns[0] || "";
+  const ps = ns.map(n => /^(.*?)(\d+)(\D*)$/.exec(n));
+  if (ps.every(p => p && p[1] === ps[0][1] && p[3] === ps[0][3])){ const nums = ps.map(p => Number(p[2])).sort((a, b) => a - b);
+    const seq = nums.every((v, i) => !i || v === nums[i - 1] + 1);
+    return ps[0][1] + (seq ? nums[0] + "-" + nums[nums.length - 1] : nums.join("·")) + ps[0][3]; }
+  return `${ns[0]} 외 ${ns.length - 1}곳`; };
+const chkSiteOfLink = (pl) => { if (!pl) return ""; if (!(S.user && S.user.role === "admin") && !CHK_SITE_MERGE_TEAM) return pl.site;
+  const rows = (pl.ids || []).map(id => (S.rows || []).find(r => r.id === id)).filter(Boolean);
+  return (rows.length ? chkSiteMerge(rows.map(r => r.site)) : "") || pl.site; };
 const chkLinkRows = (it) => it && it.link ? it.link.ids.map(id => (S.rows || []).find(r => r.id === id)).filter(Boolean) : [];
 /* 연결된 건이 지금 인증서 관리에서 속한 줄 — 납기가 바뀌어도 건 id 로 따라간다 */
 const chkCertKeyOf = (r) => r.site + "|" + (r.dlvFinal || "") + "|" + chkCls(r);

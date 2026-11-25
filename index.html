@@ -2651,7 +2651,7 @@ table.ctrmQT td.amt{text-align:right;padding-right:8px;font-variant-numeric:tabu
 
 <script>
 "use strict";
-const BUILD = "20261125.152732";
+const BUILD = "20261125.153056";
 /* ───────────────────────── 기본 ───────────────────────── */
 const $ = (s, el) => (el || document).querySelector(s);
 const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
@@ -9057,7 +9057,7 @@ function chkPkFit(){
 window.addEventListener("resize", () => chkPkFit());
 /* 등록 직후 열린 체크리스트 창에서 [‹ 등록 화면으로] — 등록한 건은 그대로 두고, 방금 쓰던 등록 창을 적은 값 그대로 다시 띄운다 (2026-11-24 사용자).
    등록 창(.modal) 을 통째로 보관했다가 다시 붙인다 — 고른 현장 · ☐ · 적은 칸 · 단추 동작이 모두 살아 있음. 관리자 먼저 */
-const CHK_NEW_BACK_TEAM = false;
+const CHK_NEW_BACK_TEAM = true;   /* 2026-11-25 사용자 "팀원들 모두에게" */
 const chkNewBackOn = () => !!(S.user && S.user.role === "admin") || CHK_NEW_BACK_TEAM;
 /* [‹ 등록 화면으로] 에서 다시 [등록] = 그 건 고치기(번호 그대로, 새 건 안 만듦 — 2026-11-24 사용자: "니 마음대로 신규로 하지 말고 기존 작성된 걸 변경").
    올려 둔 허가증은 지운다 — 다른 발주 건에 복사해 둔 것까지(사용자: "수정하게 되면 기존 허가증은 다 없애줘 · 용량만 잡아먹자나") */
@@ -9271,9 +9271,9 @@ function chkPickHtml(q, it, sel){
 const chkLinkOf = (k) => { const g = chkGroups().find(x => x.k === k); return g ? { ids: g.ids, site: g.site, dlv: g.dlv, pj: g.pj } : null; };
 const chkLinkTxt = (l) => `${l.dlv || "납기 미정"} · ${l.pj} · ${l.ids.length}건`;
 /* 여러 현장 발주 건을 같이 골라 등록하면 현장명을 묶어서: 무지1호 · 무지2호 · 무지3호 → 무지1-3호, 띄엄띄엄이면 무지1·3호, 꼴이 다르면 'A 외 n곳' (2026-11-24 사용자). 관리자 먼저 */
-const CHK_SITE_MERGE_TEAM = false;
+const CHK_SITE_MERGE_TEAM = true;   /* 2026-11-25 사용자 "팀원들 모두에게" */
 /* 허가증 문서 여러 개 (2026-11-24 사용자: "현장이 여러 개면 어쩌라고" → "항상 여러 개"). 관리자 먼저 — 팀원에게 열 때 이것 + 서버 api/checks.js PERMIT_MULTI_TEAM 을 같이 true */
-const CHK_PERMIT_MULTI_TEAM = false;
+const CHK_PERMIT_MULTI_TEAM = true;   /* 2026-11-25 사용자 "팀원들 모두에게" */
 const chkPermitMulti = () => !!(S.user && S.user.role === "admin") || CHK_PERMIT_MULTI_TEAM;
 const chkSiteMerge = (names) => { const ns = [...new Set(names.map(x => String(x || "").trim()).filter(Boolean))].sort((x, y) => (/재고/.test(x) - /재고/.test(y)) || x.localeCompare(y, "ko")); if (ns.length < 2) return ns[0] || "";
   const ps = ns.map(n => /^(.*?)(\d+)(\D*)$/.exec(n));   /* 숫자만 다름: 무지1호 · 2호 · 3호 → 무지1-3호 */
